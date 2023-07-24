@@ -1,0 +1,31 @@
+[package]
+name = "wit-bindgen-wasmcloud-provider-binary"
+version = "0.1.0"
+authors.workspace = true
+categories.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+description = """
+Bindgen macro for binary-based wasmCloud capability providers written in Rust
+"""
+
+[lib]
+proc-macro = true
+
+[features]
+default = []
+debug = []
+
+[dependencies]
+proc-macro2 = "1.0.66"
+syn = { version = "1.0.92", features = [ "parsing", "full", "visit-mut", "extra-traits" ] }
+wasm-metadata = "0.10.1"
+heck = "0.4.1"
+wasmtime-component-macro = { version = "11.0.1", features = [ "async" ] }
+wasmtime-wit-bindgen = "11.0.1"
+wit-parser = "0.8.0"
+serde = "1.0.183"
+anyhow = "1.0.72"
+quote = "1.0.32"

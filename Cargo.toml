@@ -62,7 +62,7 @@ wascap = { workspace = true }
 wasmcloud-control-interface = { workspace = true }
 
 [workspace]
-members = ["crates/provider-sdk", "examples/rust/*"]
+members = ["crates/provider-sdk", "crates/wit-bindgen-wasmcloud", "crates/wit-bindgen-wasmcloud-provider-binary", "examples/rust/*"]
 
 [workspace.dependencies]
 anyhow = { version = "1", default-features = false }
@@ -130,3 +130,5 @@ wasmtime = { version = "11", default-features = false }
 wasmtime-wasi = { version = "11", default-features = false }
 wit-bindgen = { version = "0.9", default-features = false }
 wit-component = { version = "0.12", default-features = false }
+wit-bindgen-wasmcloud = { path = "./crates/wit-bindgen-wasmcloud" }
+wit-bindgen-wasmcloud-provider-binary = { path = "./crates/wit-bindgen-wasmcloud-provider-binary" }
