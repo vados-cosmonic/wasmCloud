@@ -14,7 +14,7 @@ use futures::future::Shared;
 use futures::FutureExt;
 use tracing::instrument;
 use wasmtime_wasi::preview2;
-use wasmtime_wasi::preview2::stream::TableStreamExt;
+use wasmtime_wasi::preview2::TableStreamExt;
 
 impl Instance {
     /// Set [`Bus`] handler for this [Instance].
@@ -54,8 +54,8 @@ impl host::Host for Ctx {
         Result<
             (
                 host::FutureResult,
-                preview2::wasi::io::streams::InputStream,
-                preview2::wasi::io::streams::OutputStream,
+                crate::capability::bus::host::InputStream,
+                crate::capability::bus::host::OutputStream,
             ),
             String,
         >,

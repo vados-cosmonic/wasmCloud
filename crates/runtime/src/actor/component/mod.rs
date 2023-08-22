@@ -11,14 +11,15 @@ use core::task::{Context, Poll};
 use std::io::Cursor;
 use std::sync::{Arc, MutexGuard};
 
-use anyhow::Context as _;
+use anyhow::{bail, Context as _};
 use async_trait::async_trait;
+use bytes::Bytes;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncSeek, AsyncWrite, AsyncWriteExt};
 use tokio::sync::Mutex;
 use tracing::{instrument, trace};
 use wascap::jwt;
-use wasmtime_wasi::preview2::wasi::command::Command;
-use wasmtime_wasi::preview2::{self, InputStream, OutputStream};
+use wasmtime_wasi::preview2::StreamState;
+use wasmtime_wasi::preview2::{self, command::Command, HostInputStream, HostOutputStream};
 
 mod blobstore;
 mod bus;
@@ -101,70 +102,46 @@ impl AsyncSeek for AsyncVec {
 struct AsyncStream<T>(T);
 
 #[async_trait]
-impl<T: AsyncRead + Send + Sync + Unpin + 'static> InputStream for AsyncStream<T> {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
+impl<T: AsyncRead + Send + Sync + Unpin + 'static> HostInputStream for AsyncStream<T> {
     #[instrument(skip(self))]
-    async fn read(&mut self, buf: &mut [u8]) -> anyhow::Result<(u64, bool)> {
-        let n = self.0.read(buf).await.context("failed to read")?;
-        let n = n.try_into().context("overflow")?;
-        Ok((n, !buf.is_empty() && n == 0))
+    fn read(&mut self, size: usize) -> anyhow::Result<(Bytes, StreamState)> {
+        let mut buf = vec![0; size];
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()?;
+
+        let bytes_written = rt.block_on(self.0.read(&mut buf))?;
+        let buf_empty = buf.is_empty();
+
+        Ok((
+            buf.into(),
+            if !buf_empty && bytes_written == 0 {
+                StreamState::Closed // if the endis reached, is it closed?
+            } else {
+                StreamState::Open
+            },
+        ))
     }
 
-    async fn read_vectored<'a>(
-        &mut self,
-        bufs: &mut [std::io::IoSliceMut<'a>],
-    ) -> anyhow::Result<(u64, bool)> {
-        for buf in bufs {
-            if buf.len() > 0 {
-                let n = self.0.read(buf).await.context("failed to read")?;
-                let n = n.try_into().context("overflow")?;
-                return Ok((n, n == 0));
-            }
-        }
-        Ok((0, false))
-    }
-
-    fn is_read_vectored(&self) -> bool {
-        true
-    }
-
-    async fn readable(&self) -> anyhow::Result<()> {
+    async fn ready(&mut self) -> anyhow::Result<()> {
         Ok(())
     }
 }
 
 #[async_trait]
-impl<T: AsyncWrite + Send + Sync + Unpin + 'static> OutputStream for AsyncStream<T> {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
+impl<T: AsyncWrite + Send + Sync + Unpin + 'static> HostOutputStream for AsyncStream<T> {
     #[instrument(skip(self))]
-    async fn write(&mut self, buf: &[u8]) -> anyhow::Result<u64> {
-        let n = self.0.write(buf).await.context("failed to write")?;
-        let n = n.try_into().context("overflow")?;
-        Ok(n)
+    fn write(&mut self, bytes: Bytes) -> anyhow::Result<(usize, StreamState)> {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()?;
+        Ok((
+            rt.block_on(self.0.write(&bytes))?,
+            StreamState::Open, // ??? how do we know if the stream is still ready?
+        ))
     }
 
-    #[instrument(skip(self))]
-    async fn write_vectored<'a>(&mut self, bufs: &[std::io::IoSlice<'a>]) -> anyhow::Result<u64> {
-        let n = self
-            .0
-            .write_vectored(bufs)
-            .await
-            .context("failed to write")?;
-        let n = n.try_into().context("overflow")?;
-        Ok(n)
-    }
-
-    fn is_write_vectored(&self) -> bool {
-        true
-    }
-
-    async fn writable(&self) -> anyhow::Result<()> {
+    async fn ready(&mut self) -> anyhow::Result<()> {
         Ok(())
     }
 }
@@ -212,39 +189,23 @@ impl<T> StdioStream<T> {
 }
 
 #[async_trait]
-impl<T: AsyncRead + Send + Sync + Unpin + 'static> InputStream for StdioStream<T> {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
+impl<T: AsyncRead + Send + Sync + Unpin + 'static> HostInputStream for StdioStream<T> {
     #[instrument(skip(self))]
-    async fn read(&mut self, buf: &mut [u8]) -> anyhow::Result<(u64, bool)> {
-        if let Some(stream) = self.0.lock().await.as_mut() {
-            stream.read(buf).await
+    fn read(&mut self, size: usize) -> anyhow::Result<(Bytes, StreamState)> {
+        if let Ok(guard) = self.0.try_lock().as_mut() {
+            if guard.is_some() {
+                Ok(guard.as_mut().unwrap().read(size)?)
+            } else {
+                Ok((Bytes::new(), StreamState::Closed)) // ??? what if there's no stream?
+            }
         } else {
-            Ok((0, true))
+            Ok((Bytes::new(), StreamState::Closed)) // ??? what if we can't lock the stream for some reason?
         }
     }
 
-    #[instrument(skip(self))]
-    async fn read_vectored<'a>(
-        &mut self,
-        bufs: &mut [std::io::IoSliceMut<'a>],
-    ) -> anyhow::Result<(u64, bool)> {
+    async fn ready(&mut self) -> anyhow::Result<()> {
         if let Some(stream) = self.0.lock().await.as_mut() {
-            stream.read_vectored(bufs).await
-        } else {
-            Ok((0, true))
-        }
-    }
-
-    fn is_read_vectored(&self) -> bool {
-        true
-    }
-
-    async fn readable(&self) -> anyhow::Result<()> {
-        if let Some(stream) = self.0.lock().await.as_ref() {
-            stream.readable().await
+            stream.ready().await
         } else {
             Ok(())
         }
@@ -252,55 +213,29 @@ impl<T: AsyncRead + Send + Sync + Unpin + 'static> InputStream for StdioStream<T
 }
 
 #[async_trait]
-impl<T: AsyncWrite + Send + Sync + Unpin + 'static> OutputStream for StdioStream<T> {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
+impl<T: AsyncWrite + Send + Sync + Unpin + 'static> HostOutputStream for StdioStream<T> {
     #[instrument(skip(self))]
-    async fn write(&mut self, buf: &[u8]) -> anyhow::Result<u64> {
-        if let Some(stream) = self.0.lock().await.as_mut() {
-            stream.write(buf).await
+    fn write(&mut self, buf: Bytes) -> anyhow::Result<(usize, StreamState)> {
+        if let Ok(guard) = self.0.try_lock().as_mut() {
+            if guard.is_some() {
+                Ok(guard.as_mut().unwrap().write(buf.into())?)
+            } else {
+                Ok((
+                    buf.len().try_into().unwrap_or(usize::MAX),
+                    StreamState::Closed, // ??? if stream is missing, what do?
+                ))
+            }
         } else {
-            Ok(buf.len().try_into().unwrap_or(u64::MAX))
+            Ok((
+                buf.len().try_into().unwrap_or(usize::MAX),
+                StreamState::Closed, // ??? if writes fail do we close?
+            ))
         }
     }
 
-    #[instrument(skip(self))]
-    async fn write_vectored<'a>(&mut self, bufs: &[std::io::IoSlice<'a>]) -> anyhow::Result<u64> {
+    async fn ready(&mut self) -> anyhow::Result<()> {
         if let Some(stream) = self.0.lock().await.as_mut() {
-            stream.write_vectored(bufs).await
-        } else {
-            let total = bufs.iter().map(|b| b.len()).sum::<usize>();
-            Ok(total.try_into().unwrap_or(u64::MAX))
-        }
-    }
-
-    // TODO: Implement `splice`
-    //async fn splice(
-    //    &mut self,
-    //    src: &mut dyn InputStream,
-    //    nelem: u64,
-    //) -> anyhow::Result<(u64, bool)> {
-    //    todo!()
-    //}
-
-    #[instrument(skip(self))]
-    async fn write_zeroes(&mut self, nelem: u64) -> anyhow::Result<u64> {
-        if let Some(stream) = self.0.lock().await.as_mut() {
-            stream.write_zeroes(nelem).await
-        } else {
-            Ok(nelem)
-        }
-    }
-
-    fn is_write_vectored(&self) -> bool {
-        true
-    }
-
-    async fn writable(&self) -> anyhow::Result<()> {
-        if let Some(stream) = self.0.lock().await.as_ref() {
-            stream.writable().await
+            stream.ready().await
         } else {
             Ok(())
         }
@@ -369,8 +304,7 @@ fn instantiate(
     Interfaces::add_to_linker(&mut linker, |ctx| ctx)
         .context("failed to link `Wasmcloud` interface")?;
 
-    preview2::wasi::command::add_to_linker(&mut linker)
-        .context("failed to link `WASI` interface")?;
+    preview2::command::add_to_linker(&mut linker).context("failed to link `WASI` interface")?;
 
     let stdin = StdioStream::default();
     let stdout = StdioStream::default();

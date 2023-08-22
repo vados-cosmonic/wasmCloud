@@ -183,7 +183,7 @@ async fn instantiate(
     let mut store = wasmtime::Store::new(engine, ctx);
     let mut linker = wasmtime::Linker::<Ctx>::new(engine);
 
-    wasmtime_wasi::add_to_linker(&mut linker, |ctx| &mut ctx.wasi)
+    wasmtime_wasi::add_to_linker(&mut linker, |ctx: &mut Ctx| &mut ctx.wasi)
         .context("failed to link WASI")?;
     wasmbus::add_to_linker(&mut linker).context("failed to link wasmbus")?;
 
