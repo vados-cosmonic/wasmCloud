@@ -389,6 +389,10 @@ impl Handler {
             .request(topic, request.into())
             .await
             .context("failed to publish on NATS topic")?;
+
+        eprintln!("RESPONSE? {res:?}");
+        eprintln!("RESPONSE PAYLOAD? {:?}", &res.payload);
+
         let InvocationResponse {
             invocation_id,
             msg,
