@@ -625,7 +625,15 @@ impl KeyValueReadWrite for Handler {
                     expires: 0,
                 },
             )
-            .await?;
+            .await
+            .context("set operation failed")?;
+
+        // Ignore empty (but successful) responses, since rmp_serde does not
+        // rmp_serde does not handle empty arrays
+        if res.is_empty() {
+            return Ok(());
+        }
+
         rmp_serde::from_slice(&res).context("failed to decode response")
     }
 
