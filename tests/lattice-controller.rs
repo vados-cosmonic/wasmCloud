@@ -41,10 +41,8 @@ async fn lattice_controller_suite() -> Result<()> {
     // Get provider key/url for pre-built httpserver provider
     let httpserver_provider_key = KeyPair::from_seed(test_providers::RUST_HTTPSERVER_SUBJECT)
         .context("failed to parse `rust-httpserver` provider key")?;
-    let (httpserver_provider_url, _httpserver_provider_tmp_path) =
-        copy_par(test_providers::RUST_HTTPSERVER)
-            .await
-            .context("failed to build copied PAR")?;
+    let httpserver_provider_url = Url::from_file_path(test_providers::RUST_HTTPSERVER)
+        .map_err(|()| anyhow!("failed to construct httpserver provider ref"))?;
 
     // Get provider key/url for pre-built lattice-controller provider (subject of this test)
     let lattice_controller_provider_key =
