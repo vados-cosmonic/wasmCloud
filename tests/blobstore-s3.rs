@@ -141,7 +141,7 @@ async fn blobstore_s3_suite() -> Result<()> {
     .await?;
 
     // Start the HTTP provider
-    assert_start_provider(
+    match assert_start_provider(
         &ctl_client,
         &nats_client,
         LATTICE_PREFIX,
@@ -151,7 +151,21 @@ async fn blobstore_s3_suite() -> Result<()> {
         httpserver_provider_url,
         None,
     )
-    .await?;
+    .await
+    {
+        Ok(_) => {}
+        Err(e) => {
+            eprintln!("FAILED TO START AS EXPECTED");
+            eprintln!(
+                "OUTPUT: {:#?}",
+                String::from_utf8(tokio::process::Command::new("lsof").output().await?.stdout)?
+                    .lines()
+                    .filter(|l| l.contains("rust-httpserver"))
+                    .collect::<Vec<&str>>()
+            );
+            panic!("failed")
+        }
+    }
 
     // Start the blobstore-s3 provider
     assert_start_provider(

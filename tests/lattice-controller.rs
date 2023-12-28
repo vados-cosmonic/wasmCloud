@@ -146,8 +146,10 @@ async fn lattice_controller_suite() -> Result<()> {
     )
     .await?;
 
+    eprintln!("ABOUT TO START PROVIDER");
+
     // Start the HTTP provider
-    assert_start_provider(
+    match assert_start_provider(
         &ctl_client,
         &nats_client,
         TEST_LATTICE_PREFIX,
@@ -157,7 +159,23 @@ async fn lattice_controller_suite() -> Result<()> {
         httpserver_provider_url,
         None,
     )
-    .await?;
+    .await
+    {
+        Ok(_) => {}
+        Err(e) => {
+            eprintln!("FAILED TO START AS EXPECTED");
+            eprintln!(
+                "OUTPUT: {:#?}",
+                String::from_utf8(tokio::process::Command::new("lsof").output().await?.stdout)?
+                    .lines()
+                    .filter(|l| l.contains("rust-httpserver"))
+                    .collect::<Vec<&str>>()
+            );
+            panic!("failed")
+        }
+    }
+
+    eprintln!("STARTED PROVIDER");
 
     // Start the lattice-controller provider
     assert_start_provider(
