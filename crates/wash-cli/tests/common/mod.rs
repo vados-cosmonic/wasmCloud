@@ -326,6 +326,7 @@ impl TestWashInstance {
             .output()
             .await
             .context("failed to start component")?;
+        eprintln!("OUTPUT: {output:#?}");
         serde_json::from_slice(&output.stdout)
             .context("failed to parse output of `wash start component`")
     }
