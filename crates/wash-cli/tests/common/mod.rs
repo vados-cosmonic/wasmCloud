@@ -397,14 +397,15 @@ impl TestWashInstance {
                 &self.nats_port.to_string(),
                 "--output",
                 "json",
-                "--http-body",
-                data.as_ref(),
+                // "--http-body",
+                // data.as_ref(),
             ])
             .output()
             .await
             .with_context(|| {
                 format!("failed to call operation [{operation}] on component [{component_id}]")
             })?;
+        eprintln!("OUTPUT: {output:#?}");
         ensure!(output.status.success(), "wash call invocation failed");
         serde_json::from_slice(&output.stdout)
             .context("failed to parse output of `wash call` output")
