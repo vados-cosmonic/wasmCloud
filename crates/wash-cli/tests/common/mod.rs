@@ -397,8 +397,8 @@ impl TestWashInstance {
                 &self.nats_port.to_string(),
                 "--output",
                 "json",
-                // "--http-body",
-                // data.as_ref(),
+                "--http-body",
+                data.as_ref(),
             ])
             .output()
             .await

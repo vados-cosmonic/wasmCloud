@@ -27,6 +27,9 @@ async fn integration_call() -> Result<()> {
         .context("failed to start component")?;
     let component_id = component_id.context("component ID not present after starting component")?;
 
+    // Wait a bit for the component to initialize
+    tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+
     // Build request payload to send to the echo component
     let request = serde_json::json!({
         "method": "GET",
