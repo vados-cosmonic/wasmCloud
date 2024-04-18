@@ -1,2 +1,5 @@
+# Rust build artifacts
+Cargo.lock
+
 # wash build artifacts
 build
