@@ -99,13 +99,14 @@ impl IncomingRequest {
             .map_err(|()| anyhow!("failed to build stream for incoming request body"))?;
         let mut buf = Vec::<u8>::with_capacity(MAX_READ_BYTES as usize);
         loop {
-            match incoming_req_body_stream.read(MAX_READ_BYTES as u64) {
+            match incoming_req_body_stream.blocking_read(MAX_READ_BYTES as u64) {
                 Ok(bytes) => buf.extend(bytes),
                 Err(StreamError::Closed) => break,
                 Err(e) => bail!("failed to read bytes: {e}"),
             }
         }
         buf.shrink_to_fit();
+        drop(incoming_req_body_stream);
         IncomingBody::finish(incoming_req_body);
         Ok(buf)
     }
