@@ -394,6 +394,7 @@ async fn wrpc_invoke_http_handler(
     request: http::request::Request<String>,
     extract_json: bool,
 ) -> Result<CommandOutput> {
+    eprintln!("ABOUT TO WAIT {timeout_ms}ms");
     let result = tokio::time::timeout(
         std::time::Duration::from_millis(timeout_ms),
         wrpc_client.invoke_handle_http(request),
