@@ -44,55 +44,55 @@ async fn integration_call() -> Result<()> {
     });
 
     // Call the component
-    // let cmd_output = instance
+    let cmd_output = instance
+        .call_component(
+            &component_id,
+            "wasi:http/incoming-handler.handle",
+            serde_json::to_string(&request).context("failed to convert wash call data")?,
+        )
+        .await
+        .context("failed to call component")?;
+
+    // if let Err(e) = instance
     //     .call_component(
     //         &component_id,
     //         "wasi:http/incoming-handler.handle",
     //         serde_json::to_string(&request).context("failed to convert wash call data")?,
     //     )
     //     .await
-    //     .context("failed to call component")?;
+    //     .context("failed to call component")
+    // {
+    //     eprintln!("failed once!");
+    // }
 
-    if let Err(e) = instance
-        .call_component(
-            &component_id,
-            "wasi:http/incoming-handler.handle",
-            serde_json::to_string(&request).context("failed to convert wash call data")?,
-        )
-        .await
-        .context("failed to call component")
-    {
-        eprintln!("failed once!");
-    }
+    // if let Err(e) = instance
+    //     .call_component(
+    //         &component_id,
+    //         "wasi:http/incoming-handler.handle",
+    //         serde_json::to_string(&request).context("failed to convert wash call data")?,
+    //     )
+    //     .await
+    //     .context("failed to call component")
+    // {
+    //     eprintln!("failed twice!");
+    // }
 
-    if let Err(e) = instance
-        .call_component(
-            &component_id,
-            "wasi:http/incoming-handler.handle",
-            serde_json::to_string(&request).context("failed to convert wash call data")?,
-        )
-        .await
-        .context("failed to call component")
-    {
-        eprintln!("failed twice!");
-    }
+    // if let Err(e) = instance
+    //     .call_component(
+    //         &component_id,
+    //         "wasi:http/incoming-handler.handle",
+    //         serde_json::to_string(&request).context("failed to convert wash call data")?,
+    //     )
+    //     .await
+    //     .context("failed to call component")
+    // {
+    //     eprintln!("failed three times!");
 
-    if let Err(e) = instance
-        .call_component(
-            &component_id,
-            "wasi:http/incoming-handler.handle",
-            serde_json::to_string(&request).context("failed to convert wash call data")?,
-        )
-        .await
-        .context("failed to call component")
-    {
-        eprintln!("failed three times!");
+    //     anyhow::bail!("failed");
+    // }
 
-        anyhow::bail!("failed");
-    }
-
-    // assert!(cmd_output.success, "call command succeeded");
-    // assert_eq!(cmd_output.response["status"], 200, "status code is 200");
+    assert!(cmd_output.success, "call command succeeded");
+    assert_eq!(cmd_output.response["status"], 200, "status code is 200");
 
     Ok(())
 }

@@ -33,7 +33,8 @@ pub const LOCAL_REGISTRY: &str = "localhost:5001";
 pub const HELLO_OCI_REF: &str = "ghcr.io/brooksmtownsend/http-hello-world-rust:0.1.1";
 
 #[allow(unused)]
-pub const HTTP_JSONIFY_OCI_REF: &str = "ghcr.io/wasmcloud/component-http-jsonify:0.1.0";
+//pub const HTTP_JSONIFY_OCI_REF: &str = "ghcr.io/wasmcloud/component-http-jsonify:0.1.0";
+pub const HTTP_JSONIFY_OCI_REF: &str = "ghcr.io/brooksmtownsend/http-hello-world-rust:0.1.1";
 
 #[allow(unused)]
 pub const PROVIDER_HTTPSERVER_OCI_REF: &str = "ghcr.io/wasmcloud/http-server:0.20.0";
