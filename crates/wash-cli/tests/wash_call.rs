@@ -32,9 +32,7 @@ async fn integration_call() -> Result<()> {
         .await
         .context("failed to start component")?;
     let component_id = component_id.context("component ID not present after starting component")?;
-
-    // Wait a bit for the component to initialize
-    tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+    eprintln!("component_id? [{component_id}]");
 
     // Build request payload to send to the echo component
     let request = serde_json::json!({
@@ -64,12 +62,31 @@ async fn integration_call() -> Result<()> {
         .await
         .context("failed to call component")
     {
-        eprintln!("Printing log output!");
+        eprintln!("failed once!");
+    }
 
-        eprintln!(
-            "LOGS\n===\n{}",
-            tokio::fs::read_to_string("/home/runner/.wash/downloads/wasmcloud.log").await?
-        );
+    if let Err(e) = instance
+        .call_component(
+            &component_id,
+            "wasi:http/incoming-handler.handle",
+            serde_json::to_string(&request).context("failed to convert wash call data")?,
+        )
+        .await
+        .context("failed to call component")
+    {
+        eprintln!("failed twice!");
+    }
+
+    if let Err(e) = instance
+        .call_component(
+            &component_id,
+            "wasi:http/incoming-handler.handle",
+            serde_json::to_string(&request).context("failed to convert wash call data")?,
+        )
+        .await
+        .context("failed to call component")
+    {
+        eprintln!("failed three times!");
 
         anyhow::bail!("failed");
     }
