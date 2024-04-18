@@ -29,7 +29,7 @@ struct Component;
 
 use crate::exports::wasi::http::incoming_handler::Guest;
 use crate::wasi::http::types::{
-    Fields, IncomingRequest, Method, OutgoingBody, OutgoingResponse, ResponseOutparam,
+    Fields, IncomingBody, IncomingRequest, Method, OutgoingBody, OutgoingResponse, ResponseOutparam,
 };
 use crate::wasi::io::streams::StreamError;
 
@@ -73,13 +73,14 @@ impl Guest for Component {
             serde_json::to_vec(&response_json).expect("failed to serialize response body JSON");
 
         // Build the outgoing response
-        let outgoing_response = OutgoingResponse::new(Fields::new());
-        outgoing_response
+        let response = OutgoingResponse::new(Fields::new());
+        response.set_status_code(200).unwrap();
+        response
             .send_body(&resp_bytes)
             .expect("failed to send response body");
 
         // Set the response to be used
-        ResponseOutparam::set(outparam, Ok(outgoing_response));
+        ResponseOutparam::set(outparam, Ok(response));
     }
 }
 
@@ -105,6 +106,7 @@ impl IncomingRequest {
             }
         }
         buf.shrink_to_fit();
+        IncomingBody::finish(incoming_req_body);
         Ok(buf)
     }
 }
