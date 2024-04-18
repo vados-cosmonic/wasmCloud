@@ -6,11 +6,17 @@ use wash_lib::cli::output::StartCommandOutput;
 mod common;
 use common::{TestWashInstance, HTTP_JSONIFY_OCI_REF};
 
+use crate::common::wait_for_no_hosts;
+
 /// Ensure that wash call works
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 #[serial]
 #[cfg_attr(not(can_reach_github_com), ignore = "github.com is not reachable")]
 async fn integration_call() -> Result<()> {
+    wait_for_no_hosts()
+        .await
+        .context("unexpected wasmcloud instance(s) running")?;
+
     let instance = TestWashInstance::create().await?;
 
     // Pre-emptively pull the OCI ref for the component to ensure we don't run into the
@@ -28,7 +34,7 @@ async fn integration_call() -> Result<()> {
     let component_id = component_id.context("component ID not present after starting component")?;
 
     // Wait a bit for the component to initialize
-    tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+    tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
 
     // Build request payload to send to the echo component
     let request = serde_json::json!({
