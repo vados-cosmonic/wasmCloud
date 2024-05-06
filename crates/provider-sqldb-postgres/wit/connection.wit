@@ -1,0 +1,61 @@
+package wasmcloud:postgres@0.1.0-draft;
+
+/// Manual connection management
+interface connection {
+
+  /// Options for creating a connection to a Postgres instance
+  record connection-create-options {
+    /// Host to connect to
+    host: string, 
+    /// Port
+    port: u16, 
+    /// Username
+    username: string, 
+    /// Password
+    password: string, 
+    /// Database
+    database: string, 
+    /// Require TLS for connections
+    tls-required: bool, 
+  }
+
+  /// To support both managed connections (determined by link configuration)
+  /// and component-driven manual connection management (i.e. this WIT interface)
+  /// we allow connection options to take multiple forms.
+  ///
+  /// By default, connections can be:
+  /// - managed completely by the provider, with the component dealing only in terms of queries
+  /// - component-driven with a named-profile selected by the component
+  /// - component-driven with connection details specified completely by the component
+  variant connection-options {
+    /// Default completely managed connection
+    managed,
+    /// An existing named profile
+    named-profile(string),
+    /// Near-completely dynamic connection creation
+    ///
+    /// NOTE: components probably won't need this, but more dynamic setups might, we can also disable this kind by default at the provider level
+    manual(connection-create-options),
+  }
+
+  /// A token that represents a connection of some sort,
+  /// either a raw database connection or a database session.
+  ///
+  /// This token can be expected to be somewhat opaque to users.
+  type connection-token = string;
+
+  /// Errors that occur when creating a connection
+  variant create-connection-error { 
+    /// Invalid connection options
+    invalid-connection-options(string),
+    /// Failed to connect to the database
+    failed-to-connect(string),
+    /// Invalid authentication
+    invalid-auth(string),
+    /// Completely unexpected error
+    unexpected(string),
+  }
+
+  /// Create a connection
+  create-connection: func(opts: connection-options) -> result<connection-token, create-connection-error>;
+}
