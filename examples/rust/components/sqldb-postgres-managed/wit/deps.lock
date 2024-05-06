@@ -1,0 +1,4 @@
+[postgres]
+path = "../../../../../crates/provider-sqldb-postgres/wit"
+sha256 = "b6ac001266016f783420003e9d5fb10d7930a95148de8974bf0621c86e764ae3"
+sha512 = "e3768eae65945d471a5641d7f6ea2004f063f981f14ce6100748dbeb5f44d5c60c6420ebd73445118da2fc9ef45b31713bdcaedd5b61c3199e67ae31321fc1f1"

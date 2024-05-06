@@ -1,0 +1,40 @@
+---
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: rust-sqldb-postgres-managed
+  annotations:
+    version: v0.1.0
+    description: |
+      Demo WebAssembly component using the wasmCloud SQLDB Postgres provider via the wasmcloud:postgres WIT interface
+spec:
+  components:
+    - name: querier
+      type: component
+      properties:
+        # NOTE: You must run `wash build` for the WebAssembly binary at the relative path below to be present
+        image: file://./build/sqldb_postgres_managed_s.wasm
+      traits:
+        # Govern the spread/scheduling of the actor
+        - type: spreadscaler
+          properties:
+            replicas: 1
+        - type: link
+          properties:
+            target: sqldb-postgres
+            namespace: wasmcloud
+            package: postgres
+            interfaces: [managed-query]
+
+    # Add a capability provider that interacts with the filesystem
+    - name: sqldb-postgres
+      type: capability
+      properties:
+        #image: ghcr.io/wasmcloud/provider-sqldb-postgres:0.1.0
+
+        # NOTE: To use a local build of the provider, you can use the relative path ("file://...") below.
+        # Ensure that the provider archive (created by `wash build`) is available at the path specified.
+        # For instructions on how to build the provider locally, see `crates/provider-sqldb-postgres/README.md`)
+        image: file://../../../../sqldb-postgres-provider.par.gz
+        config:
+          - name: "default-postgres"
