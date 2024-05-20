@@ -128,20 +128,9 @@ As connection details are considered sensitive information, they should be speci
 | `PROFILE_<name>_TLS_REQUIRED` | `false`                     | Whether to require TLS for named profile connection `<name>`               |
 
 > ![NOTE]
-> As multiple components will connect to the same provider, the primary method of configuring connection "profiles" is via ENV variables
-> that are prefixed with `PROFILE_<name of profile>`.
+> As multiple components will connect to the same provider, the primary method of configuring multiple connection "profiles" is via provider configuration (the section above) values that are prefixed with `PROFILE_<name of profile>`.
 >
 > For example, to create a minimal working profile named `demo`, the named configuration value `PROFILE_demo_URL=localhost:5432` is all you need
-
-If you have many profiles, you may want to contain them in a single JSON file available at a secure (possibly bindmounted) location on disk, and present that path to the provider via the named configuration variable `PROFILES_JSON_DIR_PATH`. Only the *first* level of files beneath the directory will be processed.
-
-An example of a minimally valid JSON file representing a profile (ex. `demo.json`):
-
-```json
-{
-  "url": "localhost:5432"
-}
-```
 
 ## 🔗 Link Definition Configuration Settings
 

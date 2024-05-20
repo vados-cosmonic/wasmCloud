@@ -1,8 +1,0 @@
-package wasmcloud:postgres@0.1.0-draft;
-
-world provider-sqldb-postgres {
-    export connection;
-    export managed-query;
-    export query;
-    export prepared;
-}

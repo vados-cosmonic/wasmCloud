@@ -1,4 +1,4 @@
-# 🐘 SQLDB Postgres Managed Example
+# 🐘 SQLDB Postgres Example
 
 This folder contains a WebAssembly component that makes use of:
 
@@ -59,7 +59,11 @@ wash up
 
 ## Set up configuration for the provider
 
-Since configuration for Database clusters is usually sensitive information, we must pre-establish configuration for the provider using the [named configuration feature of wasmCloud][named-config]:
+Since configuration for Database clusters is usually sensitive information, we must pre-establish configuration for the provider using the [named configuration feature of wasmCloud][named-config].
+
+### Fully Managed connections
+
+For fully managed connections there is only *one* connection pool, and config is prefixed with `MANAGED_`:
 
 ```console
 wash config put default-postgres \
@@ -69,6 +73,20 @@ wash config put default-postgres \
     MANAGED_PASSWORD=postgres \
     MANAGED_DATABASE=postgres \
     MANAGED_TLS_REQUIRED=false
+```
+
+### Profile-driven
+
+For profile-driven connections there are multiple connections that can be accessed by changing link configuration, with connection configuration prefixed by `PROFILE_<name>_`:
+
+```console
+wash config put default-postgres \
+    PROFILE_demo_HOST=localhost \
+    PROFILE_demo_PORT=5432 \
+    PROFILE_demo_USERNAME=postgres \
+    PROFILE_demo_PASSWORD=postgres \
+    PROFILE_demo_DATABASE=postgres \
+    PROFILE_demo_TLS_REQUIRED=false
 ```
 
 ### Deploy the example application with WADM

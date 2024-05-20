@@ -1,4 +1,0 @@
-[postgres]
-url = "https://github.com/vados-cosmonic/wit-wasmcloud-postgres/archive/main.tar.gz"
-sha256 = "bbfa5f6ddacf3427ca1f5616b26c6fb8c1132ae790e40b3948c33f6fa6bb0c6e"
-sha512 = "c28f4cc0c073115a21055a67fbe42446ca24345760ae96543e3e62367ddeb810023729da3055cfdbf75e3503f83b8eabd4291dac72b42843ee80a89991c52cf9"

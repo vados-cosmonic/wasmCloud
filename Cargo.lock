@@ -5467,7 +5467,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04fb792ccd6bbcd4bba408eb8a292f70fc4a3589e5d793626f45190e6454b6ab"
 dependencies = [
  "ring",
- "rustls 0.23.4",
+ "rustls 0.23.5",
  "tokio",
  "tokio-postgres",
  "tokio-rustls 0.26.0",
@@ -6859,7 +6859,7 @@ dependencies = [
  "num 0.2.1",
  "pg_bigdecimal",
  "postgres-types",
- "rustls 0.23.4",
+ "rustls 0.23.5",
  "serde_json",
  "tokio",
  "tokio-postgres",

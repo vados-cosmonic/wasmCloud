@@ -2,6 +2,7 @@ package wasmcloud:postgres@0.1.0-draft;
 
 /// Manual connection management
 interface connection {
+  use types.{create-connection-error};
 
   /// Options for creating a connection to a Postgres instance
   record connection-create-options {
@@ -43,18 +44,6 @@ interface connection {
   ///
   /// This token can be expected to be somewhat opaque to users.
   type connection-token = string;
-
-  /// Errors that occur when creating a connection
-  variant create-connection-error { 
-    /// Invalid connection options
-    invalid-connection-options(string),
-    /// Failed to connect to the database
-    failed-to-connect(string),
-    /// Invalid authentication
-    invalid-auth(string),
-    /// Completely unexpected error
-    unexpected(string),
-  }
 
   /// Create a connection
   create-connection: func(opts: connection-options) -> result<connection-token, create-connection-error>;
