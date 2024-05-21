@@ -1976,16 +1976,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "59e867569975c88fdf73833a30bd6e0978aa6ab6bd784b648fcece07450951ba"
 
 [[package]]
-name = "eui48"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "887418ac5e8d57c2e66e04bdc2fe15f9a5407be20b54a82c86bd0e368b709701"
-dependencies = [
- "regex",
- "rustc-serialize",
-]
-
-[[package]]
 name = "event-listener"
 version = "2.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3988,7 +3978,6 @@ dependencies = [
  "bytes",
  "chrono",
  "cidr",
- "eui48",
  "fallible-iterator 0.2.0",
  "geo-types",
  "postgres-protocol",
@@ -4496,12 +4485,6 @@ name = "rustc-hash"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "08d43f7aa6b08d49f382cde6a7982047c3426db949b1424bc4b7ec9ae12c6ce2"
-
-[[package]]
-name = "rustc-serialize"
-version = "0.3.25"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe834bc780604f4674073badbad26d7219cadfb4a2275802db12cbae17498401"
 
 [[package]]
 name = "rustc_version"
@@ -6853,7 +6836,6 @@ dependencies = [
  "chrono",
  "cidr",
  "deadpool-postgres",
- "eui48",
  "futures",
  "geo-types",
  "num 0.2.1",

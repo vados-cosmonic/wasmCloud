@@ -15,13 +15,12 @@ use std::str::FromStr;
 use anyhow::{bail, Context as _};
 use bigdecimal::num_traits::Float;
 use bit_vec::BitVec;
-use bytes::BytesMut;
+use bytes::{BufMut, BytesMut};
 use chrono::{
     DateTime, Datelike, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, Offset as _, Timelike,
     Utc,
 };
 use cidr::IpCidr;
-use eui48::MacAddress;
 use geo_types::{coord, LineString, Point, Rect};
 use pg_bigdecimal::PgNumeric;
 use postgres_types::{FromSql, IsNull, PgLsn, ToSql, Type as PgType};
@@ -52,7 +51,8 @@ pub(crate) use prepared::{
 };
 
 use crate::bindings::wasmcloud::postgres::types::{
-    Date, HashableF64, Numeric, Offset, ResultRowEntry, Time, Timestamp, TimestampTz,
+    Date, HashableF64, MacAddressEui48, MacAddressEui64, Numeric, Offset, ResultRowEntry, Time,
+    Timestamp, TimestampTz,
 };
 // End of bindgen-generated type imports
 
@@ -108,60 +108,43 @@ fn point_to_hashable_f64s(p: Point<f64>) -> (HashableF64, HashableF64) {
     (x.integer_decode(), y.integer_decode())
 }
 
-/// Convert a list of bytes to a MacAddress
-fn bytes_to_macaddr(bytes: impl AsRef<[u8]>) -> anyhow::Result<PgValue> {
-    let bytes = bytes.as_ref();
-    match bytes {
-        [octet0, octet1, octet2, octet3, octet4, octet5] => Ok(PgValue::Macaddr((
-            *octet0, *octet1, *octet2, *octet3, *octet4, *octet5,
-        ))),
-        _ => bail!("unexpected number of bytes in received macaddress"),
+impl MacAddressEui48 {
+    fn as_bytes(&self) -> [u8; 6] {
+        [
+            self.bytes.0,
+            self.bytes.1,
+            self.bytes.2,
+            self.bytes.3,
+            self.bytes.4,
+            self.bytes.5,
+        ]
     }
 }
 
-/// Convert a 6 byte MacAddress to a tuple of bytes
-fn macaddr_to_bytes(m: MacAddress) -> anyhow::Result<(u8, u8, u8, u8, u8, u8)> {
-    match m.as_bytes() {
-        [octet0, octet1, octet2, octet3, octet4, octet5] => {
-            Ok((*octet0, *octet1, *octet2, *octet3, *octet4, *octet5))
-        }
-        _ => bail!("unexpected number of bytes in received macaddress"),
+impl MacAddressEui64 {
+    fn as_bytes(&self) -> [u8; 8] {
+        [
+            self.bytes.0,
+            self.bytes.1,
+            self.bytes.2,
+            self.bytes.3,
+            self.bytes.4,
+            self.bytes.5,
+            self.bytes.6,
+            self.bytes.7,
+        ]
     }
 }
 
-impl TryFrom<MacAddress> for PgValue {
-    type Error = anyhow::Error;
-
-    fn try_from(m: MacAddress) -> anyhow::Result<PgValue> {
-        match m.as_bytes() {
-            bytes if bytes.len() == 8 => bytes_to_macaddr8(bytes),
-            bytes if bytes.len() == 6 => bytes_to_macaddr(bytes),
-            _ => bail!("unexpected number of bytes in macaddress"),
-        }
+impl From<MacAddressEui48> for PgValue {
+    fn from(m: MacAddressEui48) -> PgValue {
+        PgValue::Macaddr(m)
     }
 }
 
-/// Convert a list of bytes to a MacAddress8
-fn bytes_to_macaddr8(bytes: impl AsRef<[u8]>) -> anyhow::Result<PgValue> {
-    let bytes = bytes.as_ref();
-    match bytes {
-        [octet0, octet1, octet2, octet3, octet4, octet5, octet6, octet7] => {
-            Ok(PgValue::Macaddr8((
-                *octet0, *octet1, *octet2, *octet3, *octet4, *octet5, *octet6, *octet7,
-            )))
-        }
-        _ => bail!("unexpected number of bytes in received macaddress"),
-    }
-}
-
-/// Convert a 6byte MacAddress to a tuple of bytes
-#[allow(clippy::type_complexity)]
-fn macaddr8_to_bytes(m: MacAddress) -> anyhow::Result<(u8, u8, u8, u8, u8, u8, u8, u8)> {
-    match m.as_bytes() {
-        [octet0, octet1, octet2, octet3, octet4, octet5, octet6, octet7] => Ok((
-            *octet0, *octet1, *octet2, *octet3, *octet4, *octet5, *octet6, *octet7,
-        )),
-        _ => bail!("unexpected number of bytes in received macaddress"),
+impl From<MacAddressEui64> for PgValue {
+    fn from(m: MacAddressEui64) -> PgValue {
+        PgValue::Macaddr8(m)
     }
 }
 
@@ -322,6 +305,50 @@ pub(crate) fn into_result_row(r: Row) -> ResultRow {
         });
     }
     rr
+}
+
+impl ToSql for MacAddressEui48 {
+    fn to_sql(
+        &self,
+        ty: &PgType,
+        out: &mut BytesMut,
+    ) -> core::result::Result<IsNull, Box<dyn Error + Sync + Send>> {
+        match ty {
+            &tokio_postgres::types::Type::MACADDR => {
+                out.put_slice(&self.as_bytes());
+                Ok(IsNull::No)
+            }
+            _ => Err("invalid Postgres type for EUI48 MAC address".into()),
+        }
+    }
+
+    fn accepts(ty: &PgType) -> bool {
+        matches!(ty, &tokio_postgres::types::Type::MACADDR)
+    }
+
+    tokio_postgres::types::to_sql_checked!();
+}
+
+impl ToSql for MacAddressEui64 {
+    fn to_sql(
+        &self,
+        ty: &PgType,
+        out: &mut BytesMut,
+    ) -> core::result::Result<IsNull, Box<dyn Error + Sync + Send>> {
+        match ty {
+            &tokio_postgres::types::Type::MACADDR => {
+                out.put_slice(&self.as_bytes());
+                Ok(IsNull::No)
+            }
+            _ => Err("invalid Postgres type for EUI64 MAC address".into()),
+        }
+    }
+
+    fn accepts(ty: &PgType) -> bool {
+        matches!(ty, &tokio_postgres::types::Type::MACADDR)
+    }
+
+    tokio_postgres::types::to_sql_checked!();
 }
 
 impl ToSql for PgValue {
@@ -502,39 +529,19 @@ impl ToSql for PgValue {
             }
 
             // EUI-48 (octets)
-            PgValue::Macaddr((octet0, octet1, octet2, octet3, octet4, octet5)) => {
-                MacAddress::from_bytes(&[*octet0, *octet1, *octet2, *octet3, *octet4, *octet5])
-                    .map_err(|e| format!("failed to parse MAC address: {e}"))?
-                    .to_sql(ty, out)
+            PgValue::Macaddr(m) => {
+                m.to_sql(ty, out)
             }
             PgValue::MacaddrArray(macs) => {
-                macs
-                    .iter()
-                    .map(|(octet0, octet1, octet2, octet3, octet4, octet5)| MacAddress::from_bytes(&[
-                        *octet0, *octet1, *octet2, *octet3, *octet4, *octet5,
-                    ])
-                         .map_err(|e| format!("failed to parse MAC address: {e}")))
-                    .collect::<Result<Vec<MacAddress>, _>>()?
-                    .to_sql(ty, out)
+                macs.clone().to_sql(ty, out)
             }
 
             // EUI-64 (deprecated)
-            PgValue::Macaddr8((octet0, octet1, octet2, octet3, octet4, octet5, octet6, octet7)) => {
-                MacAddress::from_bytes(&[
-                    *octet0, *octet1, *octet2, *octet3, *octet4, *octet5, *octet6, *octet7,
-                ])
-                    .map_err(|e| format!("failed to parse MAC address: {e}"))?
-                    .to_sql(ty, out)
+            PgValue::Macaddr8(m) => {
+                m.to_sql(ty, out)
             }
             PgValue::Macaddr8Array(macs) => {
-                macs
-                    .iter()
-                    .map(|(octet0, octet1, octet2, octet3, octet4, octet5, octet6, octet7)| MacAddress::from_bytes(&[
-                        *octet0, *octet1, *octet2, *octet3, *octet4, *octet5, *octet6, *octet7,
-                    ])
-                         .map_err(|e| format!("failed to parse MAC address: {e}")))
-                    .collect::<Result<Vec<MacAddress>, _>>()?
-                    .to_sql(ty, out)
+                macs.clone().to_sql(ty, out)
             }
 
             // Geo
@@ -744,6 +751,72 @@ impl ToSql for PgValue {
     }
 
     tokio_postgres::types::to_sql_checked!();
+}
+
+impl TryFrom<&[u8]> for MacAddressEui48 {
+    type Error = Box<dyn Error + Sync + Send>;
+
+    fn try_from(bytes: &[u8]) -> Result<Self, Box<dyn Error + Sync + Send>> {
+        match bytes[..] {
+            [octet0, octet1, octet2, octet3, octet4, octet5] => Ok(Self {
+                bytes: (octet0, octet1, octet2, octet3, octet4, octet5),
+            }),
+            _ => Err(format!(
+                "unexpected number of bytes ({}) in EUI48 mac address",
+                bytes.len()
+            )
+            .into()),
+        }
+    }
+}
+
+impl TryFrom<&[u8]> for MacAddressEui64 {
+    type Error = Box<dyn Error + Sync + Send>;
+
+    fn try_from(bytes: &[u8]) -> Result<Self, Box<dyn Error + Sync + Send>> {
+        match bytes[..] {
+            [octet0, octet1, octet2, octet3, octet4, octet5, octet6, octet7] => Ok(Self {
+                bytes: (
+                    octet0, octet1, octet2, octet3, octet4, octet5, octet6, octet7,
+                ),
+            }),
+            _ => Err(format!(
+                "unexpected number of bytes ({}) in EUI64 mac address",
+                bytes.len()
+            )
+            .into()),
+        }
+    }
+}
+
+impl FromSql<'_> for MacAddressEui48 {
+    fn from_sql(ty: &PgType, raw: &[u8]) -> Result<Self, Box<dyn Error + Sync + Send>> {
+        match (ty, raw) {
+            (&tokio_postgres::types::Type::MACADDR, bytes) if bytes.len() == 6 => {
+                MacAddressEui48::try_from(bytes)
+            }
+            _ => Err("invalid type/raw input for EUI48 MAC address".into()),
+        }
+    }
+
+    fn accepts(ty: &PgType) -> bool {
+        matches!(ty, &tokio_postgres::types::Type::MACADDR)
+    }
+}
+
+impl FromSql<'_> for MacAddressEui64 {
+    fn from_sql(ty: &PgType, raw: &[u8]) -> Result<Self, Box<dyn Error + Sync + Send>> {
+        match (ty, raw) {
+            (&tokio_postgres::types::Type::MACADDR8, bytes) if bytes.len() == 8 => {
+                MacAddressEui64::try_from(bytes)
+            }
+            _ => Err("invalid type/raw input for EUI64 MAC address".into()),
+        }
+    }
+
+    fn accepts(ty: &PgType) -> bool {
+        matches!(ty, &tokio_postgres::types::Type::MACADDR8)
+    }
 }
 
 impl FromSql<'_> for PgValue {
@@ -996,22 +1069,16 @@ impl FromSql<'_> for PgValue {
             )),
 
             &tokio_postgres::types::Type::MACADDR => {
-                Ok(bytes_to_macaddr(MacAddress::from_sql(ty, raw)?.as_bytes())?)
+                Ok(MacAddressEui48::from_sql(ty, raw)?.into())
             }
             &tokio_postgres::types::Type::MACADDR_ARRAY => Ok(PgValue::MacaddrArray(
-                Vec::<MacAddress>::from_sql(ty, raw)?
-                    .into_iter()
-                    .map(macaddr_to_bytes)
-                    .collect::<Result<Vec<_>, _>>()?
+                Vec::<MacAddressEui48>::from_sql(ty, raw)?
             )),
             &tokio_postgres::types::Type::MACADDR8 => {
-                Ok(bytes_to_macaddr8(MacAddress::from_sql(ty, raw)?.as_bytes())?)
+                Ok(MacAddressEui64::from_sql(ty, raw)?.into())
             }
             &tokio_postgres::types::Type::MACADDR8_ARRAY => Ok(PgValue::Macaddr8Array(
-                Vec::<MacAddress>::from_sql(ty, raw)?
-                    .into_iter()
-                    .map(macaddr8_to_bytes)
-                    .collect::<Result<Vec<_>, _>>()?
+                Vec::<MacAddressEui64>::from_sql(ty, raw)?
             )),
             &tokio_postgres::types::Type::DATE => {
                 Ok(PgValue::Date(NaiveDate::from_sql(ty, raw)?.into()))
