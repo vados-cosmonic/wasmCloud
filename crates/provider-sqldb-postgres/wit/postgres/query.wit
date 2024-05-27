@@ -1,0 +1,74 @@
+package wasmcloud:postgres@0.1.0-draft;
+
+/// Interface for querying a Postgres database
+interface query {
+  use types.{pg-value, result-row, query-error};
+  use connection.{connection-token};
+
+  /// Query a Postgres database given a connection token (which can represent a connection *or* session)
+  ///
+  /// Queries *must* be parameterized, with named arguments in the form of `$<integer>`, for example:
+  ///
+  /// ```
+  /// SELECT email,username FROM users WHERE uuid=$1;
+  /// ```
+  ///
+  /// NOTE: To see how to obtain a `connection-token`, see `connection.wit`.
+  ///
+  query: func(token: connection-token, query: string, params: list<pg-value>) -> result<list<result-row>, query-error>;
+}
+
+/// Managed queries are similar to regular queries, except that clients trust the
+/// provider/implementer to completely manage all connection/session semantics and information.
+///
+/// Connections must be set up and managed out-of-band, completely unknown to the calling component.
+interface managed-query {
+  use types.{pg-value, result-row, query-error};
+
+  /// Query a Postgres database without a connection token, leaving connection/session management
+  /// to the callee/implementer of this interface
+  ///
+  /// Queries *must* be parameterized, with named arguments in the form of `$<integer>`, for example:
+  ///
+  /// ```
+  /// SELECT email,username FROM users WHERE uuid=$1;
+  /// ```
+  ///
+  /// NOTE: To see how to obtain a `connection-token`, see `connection.wit`.
+  /// NOTE: If you would like to control the connection/session, see the `query` interface
+  ///
+  query: func(query: string, params: list<pg-value>) -> result<list<result-row>, query-error>;
+}
+
+/// Interface for querying a Postgres database with prepared statements
+interface prepared {
+  use types.{pg-value, result-row, statement-prepare-error, prepared-statement-exec-error};
+  use connection.{connection-token};
+
+  /// A token that represents a previously created prepared statement,
+  ///
+  /// This token can be expected to be somewhat opaque to users.
+  type prepared-statement-token = string;
+
+  /// Prepare a statement, given a connection token (which can represent a connection *or* session),
+  /// to a Postgres database.
+  ///
+  /// Queries *must* be parameterized, with named arguments in the form of `$<integer>`, for example:
+  ///
+  /// ```
+  /// SELECT email,username FROM users WHERE uuid=$1;
+  /// ```
+  ///
+  /// NOTE: To see how to obtain a `connection-token`, see `connection.wit`.
+  ///
+  prepare: func(
+    token: connection-token,
+    statement: string
+  ) -> result<prepared-statement-token, statement-prepare-error>;
+
+  /// Execute a prepared statement, returning the number of rows affected
+  exec: func(
+    stmt-token: prepared-statement-token,
+    params: list<pg-value>,
+  ) -> result<u64, prepared-statement-exec-error>;
+}

@@ -1,1 +1,1 @@
-postgres = "https://github.com/vados-cosmonic/wit-wasmcloud-postgres/archive/main.tar.gz"
+postgres = "./postgres"

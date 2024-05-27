@@ -358,6 +358,7 @@ impl ToSql for PgValue {
         out: &mut BytesMut,
     ) -> core::result::Result<IsNull, Box<dyn Error + Sync + Send>> {
         match self {
+            PgValue::Null => None::<i32>.to_sql(ty, out),
             // Numeric
             PgValue::BigInt(n) | PgValue::Int8(n) => n.to_sql(ty, out),
             PgValue::Int8Array(ns) => ns.to_sql(ty, out),
