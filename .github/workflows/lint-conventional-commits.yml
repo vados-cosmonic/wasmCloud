@@ -1,0 +1,13 @@
+name: lint-conventional-commits
+
+on: [pull_request]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+        # https://github.com/aevea/commitsar/commit/0e7037e7f720b9d2f2e9ee24cf47eef88dc9d716
+      - uses: aevea/commitsar@0e7037e7f720b9d2f2e9ee24cf47eef88dc9d716
