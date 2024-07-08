@@ -1355,9 +1355,9 @@ dependencies = [
 
 [[package]]
 name = "cidr"
-version = "0.2.3"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6bdf600c45bd958cf2945c445264471cca8b6c8e67bc87b71affd6d7e5682621"
+checksum = "8d18b093eba54c9aaa1e3784d4361eb2ba944cf7d0a932a830132238f483e8d8"
 
 [[package]]
 name = "cipher"
@@ -2861,7 +2861,7 @@ dependencies = [
  "rustls-pki-types",
  "tokio",
  "tokio-rustls 0.25.0",
- "webpki-roots 0.26.3",
+ "webpki-roots 0.26.2",
 ]
 
 [[package]]
@@ -2899,7 +2899,7 @@ dependencies = [
  "tokio",
  "tokio-rustls 0.26.0",
  "tower-service",
- "webpki-roots 0.26.3",
+ "webpki-roots 0.26.2",
 ]
 
 [[package]]
@@ -4561,7 +4561,7 @@ dependencies = [
  "tokio-rustls 0.25.0",
  "tokio-util",
  "url",
- "webpki-roots 0.26.3",
+ "webpki-roots 0.26.2",
 ]
 
 [[package]]
@@ -4739,7 +4739,7 @@ dependencies = [
  "wasm-bindgen-futures",
  "wasm-streams",
  "web-sys",
- "webpki-roots 0.26.3",
+ "webpki-roots 0.26.2",
  "winreg 0.52.0",
 ]
 
@@ -4993,9 +4993,9 @@ dependencies = [
 
 [[package]]
 name = "rustversion"
-version = "1.0.17"
+version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "955d28af4278de8121b7ebeb796b6a45735dc01436d898801014aced2773a3d6"
+checksum = "80af6f9131f277a45a3fba6ce8e2258037bb0477a67e610d3c1fe046ab31de47"
 
 [[package]]
 name = "ryu"
@@ -5137,9 +5137,9 @@ dependencies = [
 
 [[package]]
 name = "serde_bytes"
-version = "0.11.15"
+version = "0.11.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "387cc504cb06bb40a96c8e04e951fe01854cf6bc921053c954e4a606d9675c6a"
+checksum = "8b8497c313fd43ab992087548117643f6fcd935cbf36f176ffda0aacf9591734"
 dependencies = [
  "serde",
 ]
@@ -6577,7 +6577,7 @@ dependencies = [
  "ring",
  "serde",
  "serde_json",
- "wasm-encoder 0.212.0",
+ "wasm-encoder 0.208.1",
  "wasm-gen",
  "wasmparser 0.202.0",
 ]
@@ -6704,7 +6704,7 @@ dependencies = [
  "wadm-types",
  "walkdir",
  "wascap 0.15.0",
- "wasm-encoder 0.212.0",
+ "wasm-encoder 0.208.1",
  "wasmcloud-component-adapters",
  "wasmcloud-control-interface 1.0.0",
  "wasmcloud-core 0.7.0",
@@ -6824,6 +6824,15 @@ dependencies = [
 
 [[package]]
 name = "wasm-encoder"
+version = "0.208.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6425e84e42f7f558478e40ecc2287912cb319f2ca68e5c0bb93c61d4fc63fa17"
+dependencies = [
+ "leb128",
+]
+
+[[package]]
+name = "wasm-encoder"
 version = "0.209.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7b4a05336882dae732ce6bd48b7e11fe597293cb72c13da4f35d7d5f8d53b2a7"
@@ -6833,9 +6842,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-encoder"
-version = "0.212.0"
+version = "0.210.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "501940df4418b8929eb6d52f1aade1fdd15a5b86c92453cb696e3c906bd3fc33"
+checksum = "e7e3764d9d6edabd8c9e16195e177be0d20f6ab942ad18af52860f12f82bc59a"
 dependencies = [
  "leb128",
 ]
@@ -6937,7 +6946,6 @@ dependencies = [
  "wasmcloud-provider-blobstore-s3",
  "wasmcloud-provider-http-client",
  "wasmcloud-provider-http-server",
- "wasmcloud-provider-keyvalue-nats",
  "wasmcloud-provider-keyvalue-redis",
  "wasmcloud-provider-keyvalue-vault",
  "wasmcloud-provider-lattice-controller",
@@ -7086,7 +7094,7 @@ dependencies = [
  "url",
  "uuid 1.8.0",
  "wascap 0.15.0",
- "webpki-roots 0.26.3",
+ "webpki-roots 0.26.2",
  "wrpc-transport",
  "wrpc-transport-nats",
 ]
@@ -7231,7 +7239,7 @@ dependencies = [
  "tokio",
  "tracing",
  "wasmcloud-provider-sdk",
- "webpki-roots 0.26.3",
+ "webpki-roots 0.26.2",
  "wrpc-interface-http",
  "wrpc-transport",
 ]
@@ -7261,24 +7269,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wasmcloud-provider-keyvalue-nats"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-nats 0.33.0",
- "bytes",
- "futures",
- "rustls-pemfile 2.1.2",
- "serde",
- "serde_json",
- "tokio",
- "tracing",
- "wascap 0.15.0",
- "wasmcloud-provider-sdk",
- "wit-bindgen-wrpc",
-]
-
-[[package]]
 name = "wasmcloud-provider-keyvalue-redis"
 version = "0.26.0"
 dependencies = [
@@ -7289,7 +7279,6 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
- "tracing-subscriber",
  "url",
  "uuid 1.8.0",
  "wasmcloud-control-interface 1.0.0",
@@ -7383,7 +7372,6 @@ dependencies = [
  "tracing",
  "tracing-futures",
  "tracing-opentelemetry 0.24.0",
- "tracing-subscriber",
  "ulid",
  "uuid 1.8.0",
  "wasmcloud-core 0.7.0",
@@ -7836,7 +7824,7 @@ dependencies = [
  "tracing",
  "wasmtime",
  "wasmtime-wasi",
- "webpki-roots 0.26.3",
+ "webpki-roots 0.26.2",
 ]
 
 [[package]]
@@ -7870,22 +7858,22 @@ dependencies = [
 
 [[package]]
 name = "wast"
-version = "212.0.0"
+version = "210.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4606a05fb0aae5d11dd7d8280a640d88a63ee019360ba9be552da3d294b8d1f5"
+checksum = "aa835c59bd615e00f16be65705d85517d40b44b3c831d724e450244685176c3c"
 dependencies = [
  "bumpalo",
  "leb128",
  "memchr",
  "unicode-width",
- "wasm-encoder 0.212.0",
+ "wasm-encoder 0.210.0",
 ]
 
 [[package]]
 name = "wat"
-version = "1.212.0"
+version = "1.210.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c74ca7f93f11a5d6eed8499f2a8daaad6e225cab0151bc25a091fff3b987532f"
+checksum = "67faece8487996430c6812be7f8776dc563ca0efcd3db77f8839070480c0d1a6"
 dependencies = [
  "wast",
 ]
@@ -7928,9 +7916,9 @@ checksum = "5f20c57d8d7db6d3b86154206ae5d8fba62dd39573114de97c2cb0578251f8e1"
 
 [[package]]
 name = "webpki-roots"
-version = "0.26.3"
+version = "0.26.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bd7c23921eeb1713a4e851530e9b9756e4fb0e89978582942612524cf09f01cd"
+checksum = "3c452ad30530b54a4d8e71952716a212b08efd0f3562baa66c29a618b07da7c3"
 dependencies = [
  "rustls-pki-types",
 ]

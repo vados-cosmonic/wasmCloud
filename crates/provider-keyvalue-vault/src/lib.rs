@@ -13,7 +13,6 @@ use tokio::sync::{Mutex, RwLock};
 use tokio::task::JoinHandle;
 use tracing::{debug, error, info, instrument, warn};
 use vaultrs::client::{Client as _, VaultClient, VaultClientSettings};
-use wasmcloud_provider_sdk::initialize_observability;
 use wasmcloud_provider_sdk::{
     get_connection, propagate_trace_for_ctx, run_provider, Context, LinkConfig, Provider,
 };
@@ -173,18 +172,9 @@ pub struct KvVaultProvider {
 }
 
 impl KvVaultProvider {
-    pub fn name() -> &'static str {
-        "keyvalue-vault-provider"
-    }
-
     pub async fn run() -> anyhow::Result<()> {
-        initialize_observability!(
-            KvVaultProvider::name(),
-            std::env::var_os("PROVIDER_KV_VAULT_FLAMEGRAPH_PATH")
-        );
-
         let provider = Self::default();
-        let shutdown = run_provider(provider.clone(), KvVaultProvider::name())
+        let shutdown = run_provider(provider.clone(), "keyvalue-vault-provider")
             .await
             .context("failed to run provider")?;
         let connection = get_connection();

@@ -19,7 +19,6 @@ use tokio::sync::RwLock;
 use tracing::{debug, error, info, instrument, warn};
 
 use wasmcloud_provider_sdk::core::HostData;
-use wasmcloud_provider_sdk::initialize_observability;
 use wasmcloud_provider_sdk::{
     get_connection, load_host_data, propagate_trace_for_ctx, run_provider, Context, LinkConfig,
     Provider,
@@ -57,20 +56,10 @@ pub async fn run() -> anyhow::Result<()> {
 }
 
 impl KvRedisProvider {
-    pub fn name() -> &'static str {
-        "keyvalue-redis-provider"
-    }
-
     pub async fn run() -> anyhow::Result<()> {
-        initialize_observability!(
-            KvRedisProvider::name(),
-            std::env::var_os("PROVIDER_KV_REDIS_FLAMEGRAPH_PATH")
-        );
-
         let HostData { config, .. } = load_host_data().context("failed to load host data")?;
         let provider = KvRedisProvider::new(config.clone());
-
-        let shutdown = run_provider(provider.clone(), KvRedisProvider::name())
+        let shutdown = run_provider(provider.clone(), "keyvalue-redis-provider")
             .await
             .context("failed to run provider")?;
         let connection = get_connection();
@@ -362,7 +351,6 @@ impl Provider for KvRedisProvider {
 
     /// Handle shutdown request by closing all connections
     async fn shutdown(&self) -> anyhow::Result<()> {
-        info!("shutting down");
         let mut aw = self.sources.write().await;
         // empty the component link data and stop all servers
         for (_, conn) in aw.drain() {

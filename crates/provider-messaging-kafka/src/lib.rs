@@ -12,7 +12,6 @@ use rskafka::record::{Record, RecordAndOffset};
 use tokio::spawn;
 use tokio::task::JoinHandle;
 use tracing::{debug, error, instrument, warn};
-use wasmcloud_provider_sdk::initialize_observability;
 use wasmcloud_provider_sdk::{get_connection, run_provider, Context, LinkConfig, Provider};
 use wasmcloud_tracing::context::TraceContextInjector;
 
@@ -47,18 +46,9 @@ pub struct KafkaMessagingProvider {
 }
 
 impl KafkaMessagingProvider {
-    pub fn name() -> &'static str {
-        "messaging-kafka-provider"
-    }
-
     pub async fn run() -> anyhow::Result<()> {
-        initialize_observability!(
-            KafkaMessagingProvider::name(),
-            std::env::var_os("PROVIDER_MESSAGING_KAFKA_FLAMEGRAPH_PATH")
-        );
-
         let provider = Self::default();
-        let shutdown = run_provider(provider.clone(), KafkaMessagingProvider::name())
+        let shutdown = run_provider(provider.clone(), "messaging-kafka-provider")
             .await
             .context("failed to run provider")?;
         let connection = get_connection();

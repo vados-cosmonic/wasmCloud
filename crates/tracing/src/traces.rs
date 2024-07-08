@@ -54,7 +54,6 @@ where
     }
 }
 
-/// This guard prevents early `drop()`ing of the tracing related internal data structures
 pub struct FlushGuard {
     _stderr: tracing_appender::non_blocking::WorkerGuard,
     _flame: Option<tracing_flame::FlushGuard<BufWriter<File>>>,
@@ -75,7 +74,7 @@ pub fn configure_tracing(
     use_structured_logging: bool,
     flame_graph: Option<impl AsRef<Path>>,
     log_level_override: Option<&Level>,
-) -> anyhow::Result<(tracing::Dispatch, FlushGuard)> {
+) -> anyhow::Result<FlushGuard> {
     let flame = flame_graph.map(FlameLayer::with_file).transpose()?;
     let (flame, flame_guard) = flame.map(|(l, g)| (Some(l), Some(g))).unwrap_or_default();
     let reg = tracing_subscriber::Registry::default()
@@ -87,30 +86,26 @@ pub fn configure_tracing(
     let fmt = tracing_subscriber::fmt::layer()
         .with_writer(stderr)
         .with_ansi(ansi);
-
-    let dispatch = if use_structured_logging {
-        registry
-            .with(
+    if use_structured_logging {
+        tracing::subscriber::set_global_default(
+            reg.with(
                 fmt.event_format(JsonOrNot::Json(Format::default().json()))
                     .fmt_fields(JsonFields::new()),
-            )
-            .into()
+            ),
+        )
     } else {
-        registry
-            .with(
+        tracing::subscriber::set_global_default(
+            reg.with(
                 fmt.event_format(JsonOrNot::Not(Format::default()))
                     .fmt_fields(DefaultFields::new()),
-            )
-            .into()
-    };
-
-    Ok((
-        dispatch,
-        FlushGuard {
-            _stderr: stderr_guard,
-            _flame: flame_guard,
-        },
-    ))
+            ),
+        )
+    }
+    .context("logger already configured")?;
+    Ok(FlushGuard {
+        _stderr: stderr_guard,
+        _flame: flame_guard,
+    })
 }
 
 /// Configures a global tracing subscriber, which includes:
@@ -129,7 +124,7 @@ pub fn configure_tracing(
     use_structured_logging: bool,
     flame_graph: Option<impl AsRef<Path>>,
     log_level_override: Option<&Level>,
-) -> anyhow::Result<(tracing::Dispatch, FlushGuard)> {
+) -> anyhow::Result<FlushGuard> {
     let service_name = Arc::from(service_name);
 
     let traces = otel_config
@@ -142,7 +137,7 @@ pub fn configure_tracing(
         .transpose()?;
     let flame = flame_graph.map(FlameLayer::with_file).transpose()?;
     let (flame, flame_guard) = flame.map(|(l, g)| (Some(l), Some(g))).unwrap_or_default();
-    let registry = tracing_subscriber::Registry::default()
+    let reg = tracing_subscriber::Registry::default()
         .with(get_level_filter(log_level_override))
         .with(traces)
         .with(logs)
@@ -153,30 +148,26 @@ pub fn configure_tracing(
     let fmt = tracing_subscriber::fmt::layer()
         .with_writer(stderr)
         .with_ansi(ansi);
-
-    let dispatch = if use_structured_logging {
-        registry
-            .with(
+    if use_structured_logging {
+        tracing::subscriber::set_global_default(
+            reg.with(
                 fmt.event_format(JsonOrNot::Json(Format::default().json()))
                     .fmt_fields(JsonFields::new()),
-            )
-            .into()
+            ),
+        )
     } else {
-        registry
-            .with(
+        tracing::subscriber::set_global_default(
+            reg.with(
                 fmt.event_format(JsonOrNot::Not(Format::default()))
                     .fmt_fields(DefaultFields::new()),
-            )
-            .into()
-    };
-
-    Ok((
-        dispatch,
-        FlushGuard {
-            _stderr: stderr_guard,
-            _flame: flame_guard,
-        },
-    ))
+            ),
+        )
+    }
+    .context("logger/tracer already configured")?;
+    Ok(FlushGuard {
+        _stderr: stderr_guard,
+        _flame: flame_guard,
+    })
 }
 
 #[cfg(feature = "otel")]

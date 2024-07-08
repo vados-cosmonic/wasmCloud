@@ -28,7 +28,6 @@ providers = [
     "dep:wasmcloud-provider-blobstore-s3",
     "dep:wasmcloud-provider-http-client",
     "dep:wasmcloud-provider-http-server",
-    "dep:wasmcloud-provider-keyvalue-nats",
     "dep:wasmcloud-provider-keyvalue-redis",
     "dep:wasmcloud-provider-keyvalue-vault",
     "dep:wasmcloud-provider-lattice-controller",
@@ -57,10 +56,6 @@ required-features = ["providers"]
 
 [[bin]]
 name = "http-client-provider"
-required-features = ["providers"]
-
-[[bin]]
-name = "keyvalue-nats-provider"
 required-features = ["providers"]
 
 [[bin]]
@@ -108,7 +103,6 @@ nkeys = { workspace = true }
 redis = { workspace = true, optional = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal"] }
 tracing = { workspace = true } # TODO: revisit the 'release_max_level_info' feature https://github.com/wasmCloud/wasmCloud/issues/468
-tracing-subscriber = { workspace = true }
 wasmcloud-core = { workspace = true, features = ["otel"] }
 wasmcloud-host = { workspace = true }
 wasmcloud-provider-blobstore-azure = { workspace = true, optional = true }
@@ -116,7 +110,6 @@ wasmcloud-provider-blobstore-fs = { workspace = true, optional = true }
 wasmcloud-provider-blobstore-s3 = { workspace = true, optional = true }
 wasmcloud-provider-http-client = { workspace = true, optional = true }
 wasmcloud-provider-http-server = { workspace = true, optional = true }
-wasmcloud-provider-keyvalue-nats = { workspace = true, optional = true }
 wasmcloud-provider-keyvalue-redis = { workspace = true, optional = true }
 wasmcloud-provider-keyvalue-vault = { workspace = true, optional = true }
 wasmcloud-provider-lattice-controller = { workspace = true, optional = true }
@@ -311,7 +304,7 @@ warp = { version = "0.3", default-features = false }
 wascap = { version = "^0.15.0", path = "./crates/wascap", default-features = false }
 wash-cli = { version = "0", path = "./crates/wash-cli", default-features = false }
 wash-lib = { version = "^0.22.0", path = "./crates/wash-lib", default-features = false }
-wasm-encoder = { version = "0.212", default-features = false }
+wasm-encoder = { version = "0.208", default-features = false }
 wasm-gen = { version = "0.1", default-features = false }
 wasmcloud-component = { version = "0", path = "crates/component", default-features = false }
 wasmcloud-component-adapters = { version = "0.9", default-features = false }
@@ -323,7 +316,6 @@ wasmcloud-provider-blobstore-fs = { version = "*", path = "./crates/provider-blo
 wasmcloud-provider-blobstore-s3 = { version = "*", path = "./crates/provider-blobstore-s3", default-features = false }
 wasmcloud-provider-http-client = { version = "*", path = "./crates/provider-http-client", default-features = false }
 wasmcloud-provider-http-server = { version = "*", path = "./crates/provider-http-server", default-features = false }
-wasmcloud-provider-keyvalue-nats = { version = "*", path = "./crates/provider-keyvalue-nats", default-features = false }
 wasmcloud-provider-keyvalue-redis = { version = "*", path = "./crates/provider-keyvalue-redis", default-features = false }
 wasmcloud-provider-keyvalue-vault = { version = "*", path = "./crates/provider-keyvalue-vault", default-features = false }
 wasmcloud-provider-lattice-controller = { version = "*", path = "./crates/provider-lattice-controller", default-features = false }

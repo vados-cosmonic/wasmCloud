@@ -1,5 +1,3 @@
-use std::path::Path;
-
 #[cfg(feature = "otel")]
 use heck::ToKebabCase;
 #[cfg(feature = "otel")]
@@ -8,6 +6,7 @@ pub use opentelemetry::{
     metrics::{Counter, Histogram, Meter, Unit},
     KeyValue,
 };
+use std::path::Path;
 use wasmcloud_core::logging::Level;
 use wasmcloud_core::OtelConfig;
 
@@ -15,9 +14,6 @@ use wasmcloud_core::OtelConfig;
 pub mod context;
 
 mod traces;
-
-#[cfg(feature = "otel")]
-pub use traces::FlushGuard;
 
 mod metrics;
 
@@ -48,7 +44,7 @@ pub fn configure_observability(
     use_structured_logging: bool,
     flame_graph: Option<impl AsRef<Path>>,
     log_level_override: Option<&Level>,
-) -> anyhow::Result<(tracing::Dispatch, traces::FlushGuard)> {
+) -> anyhow::Result<traces::FlushGuard> {
     let normalized_service_name = service_name.to_kebab_case();
 
     if otel_config.metrics_enabled() {

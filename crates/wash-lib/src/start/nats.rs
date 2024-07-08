@@ -1,6 +1,7 @@
-use anyhow::{bail, Result};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+
+use anyhow::{bail, Result};
 use tokio::fs::{metadata, write};
 use tokio::process::{Child, Command};
 use tracing::warn;
@@ -124,7 +125,6 @@ pub struct NatsConfig {
     pub remote_url: Option<String>,
     pub credentials: Option<PathBuf>,
     pub websocket_port: u16,
-    pub config_path: Option<PathBuf>,
 }
 
 /// Returns a standalone NATS config with the following values:
@@ -144,7 +144,6 @@ impl Default for NatsConfig {
             remote_url: None,
             credentials: None,
             websocket_port: 4223,
-            config_path: None,
         }
     }
 }
@@ -169,7 +168,6 @@ impl NatsConfig {
         remote_url: String,
         credentials: PathBuf,
         websocket_port: u16,
-        config_path: Option<PathBuf>,
     ) -> Self {
         NatsConfig {
             host: host.to_owned(),
@@ -179,7 +177,6 @@ impl NatsConfig {
             remote_url: Some(remote_url),
             credentials: Some(credentials),
             websocket_port,
-            config_path,
         }
     }
     /// Instantiates config for a standalone NATS server. Unless you're looking to extend
@@ -266,7 +263,6 @@ where
     T: Into<Stdio>,
 {
     let host_addr = format!("{}:{}", config.host, config.port);
-
     // If we can connect to the local port, NATS won't be able to listen on that port
     if tokio::net::TcpStream::connect(&host_addr).await.is_ok() {
         bail!(
@@ -275,54 +271,31 @@ where
             config.port
         );
     }
-
-    let bin_path_ref = bin_path.as_ref();
-
-    if let Some(parent_path) = bin_path_ref.parent() {
+    let child = if let Some(parent_path) = bin_path.as_ref().parent() {
         let config_path = parent_path.join(NATS_SERVER_CONF);
         let host = config.host.clone();
         let port = config.port;
-
-        let mut cmd_args = vec![
-            "-js".to_string(),
-            "--addr".to_string(),
-            host,
-            "--port".to_string(),
-            port.to_string(),
-            "--pid".to_string(),
-            parent_path
-                .join(NATS_SERVER_PID)
-                .to_string_lossy()
-                .to_string(),
-            "--config".to_string(),
-        ];
-
-        if let Some(nats_cfg_path) = &config.config_path {
-            anyhow::ensure!(
-                nats_cfg_path.is_file(),
-                "The provided NATS config File [{:?}] is not a valid File",
-                nats_cfg_path
-            );
-
-            cmd_args.push(nats_cfg_path.to_string_lossy().to_string());
-        } else {
-            config.write_to_path(&config_path).await?;
-            cmd_args.push(config_path.to_string_lossy().to_string());
-        }
-
-        let child = Command::new(bin_path_ref)
-            .stderr(stderr.into())
+        config.write_to_path(&config_path).await?;
+        Command::new(bin_path.as_ref())
+            .stderr(stderr)
             .stdin(Stdio::null())
-            .args(&cmd_args)
+            .arg("-js")
+            .arg("--config")
+            .arg(config_path)
+            .arg("--addr")
+            .arg(host)
+            .arg("--port")
+            .arg(port.to_string())
+            .arg("--pid")
+            .arg(parent_path.join(NATS_SERVER_PID))
             .spawn()
-            .map_err(anyhow::Error::from)?;
-
-        wait_for_server(&host_addr, "NATS server")
-            .await
-            .map(|()| child)
+            .map_err(anyhow::Error::from)
     } else {
         bail!("could not write config to disk, couldn't find download directory")
-    }
+    }?;
+    wait_for_server(&host_addr, "NATS server")
+        .await
+        .map(|()| child)
 }
 
 /// Helper function to get the path to the NATS server pid file
@@ -471,7 +444,6 @@ mod test {
             "connect.ngs.global".to_string(),
             creds.clone(),
             4204,
-            None,
         );
 
         config.write_to_path(creds.clone()).await?;

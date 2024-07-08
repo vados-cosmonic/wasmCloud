@@ -50,8 +50,6 @@ on:
       - 'provider-http-client-v[0-9].[0-9]+.[0-9]+-*'
       - 'provider-http-server-v[0-9].[0-9]+.[0-9]+'
       - 'provider-http-server-v[0-9].[0-9]+.[0-9]+-*'
-      - 'provider-keyvalue-nats-v[0-9].[0-9]+.[0-9]+'
-      - 'provider-keyvalue-nats-v[0-9].[0-9]+.[0-9]+-*'
       - 'provider-keyvalue-redis-v[0-9].[0-9]+.[0-9]+'
       - 'provider-keyvalue-redis-v[0-9].[0-9]+.[0-9]+-*'
       - 'provider-keyvalue-vault-v[0-9].[0-9]+.[0-9]+'
@@ -174,7 +172,6 @@ jobs:
       - run: move "target/release/blobstore-s3-provider.exe" "artifact/bin/blobstore-s3-provider.exe"
       - run: move "target/release/http-client-provider.exe" "artifact/bin/http-client-provider.exe"
       - run: move "target/release/http-server-provider.exe" "artifact/bin/http-server-provider.exe"
-      - run: move "target/release/keyvalue-nats-provider.exe" "artifact/bin/keyvalue-nats-provider.exe"
       - run: move "target/release/keyvalue-redis-provider.exe" "artifact/bin/keyvalue-redis-provider.exe"
       - run: move "target/release/keyvalue-vault-provider.exe" "artifact/bin/keyvalue-vault-provider.exe"
       - run: move "target/release/lattice-controller-provider.exe" "artifact/bin/lattice-controller-provider.exe"
@@ -299,9 +296,6 @@ jobs:
 
           - name: blobstore-s3
             subject: BLOBSTORE_S3_SUBJECT
-
-          - name: keyvalue-nats
-            subject: KEYVALUE_NATS_SUBJECT
 
           - name: keyvalue-redis
             subject: KEYVALUE_REDIS_SUBJECT

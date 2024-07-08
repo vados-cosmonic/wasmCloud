@@ -3,15 +3,18 @@
     "dockerComposeFile": "docker-compose.yml",
     "service": "dev",
     "workspaceFolder": "/workspace",
+
     "userEnvProbe": "loginShell",
     "updateRemoteUserUID": false,
+
     "onCreateCommand": "${containerWorkspaceFolder}/.devcontainer/setup.sh",
+
     "customizations": {
         "vscode": {
             "settings": {
                 "git.alwaysSignOff": true,
                 "nix.enableLanguageServer": true,
-                "nix.serverPath": "nixd"
+                "nix.serverPath": "rnix-lsp"
             },
             "runItOn": {
                 "commands": [
@@ -31,7 +34,7 @@
                 "serayuzgur.crates",
                 "yzhang.markdown-all-in-one",
                 "tamasfe.even-better-toml"
-            ]
+            ],
         }
     }
 }
