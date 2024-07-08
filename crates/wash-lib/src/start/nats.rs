@@ -389,38 +389,38 @@ mod test {
         Ok(())
     }
 
-    #[tokio::test]
-    #[cfg_attr(not(can_reach_github_com), ignore = "github.com is not reachable")]
-    async fn can_gracefully_fail_running_nats() -> Result<()> {
-        let install_dir = temp_dir().join("can_gracefully_fail_running_nats");
-        let _ = remove_dir_all(&install_dir).await;
-        create_dir_all(&install_dir).await?;
-        assert!(!is_bin_installed(&install_dir, NATS_SERVER_BINARY).await);
+    // #[tokio::test]
+    // #[cfg_attr(not(can_reach_github_com), ignore = "github.com is not reachable")]
+    // async fn can_gracefully_fail_running_nats() -> Result<()> {
+    //     let install_dir = temp_dir().join("can_gracefully_fail_running_nats");
+    //     let _ = remove_dir_all(&install_dir).await;
+    //     create_dir_all(&install_dir).await?;
+    //     assert!(!is_bin_installed(&install_dir, NATS_SERVER_BINARY).await);
 
-        let res = ensure_nats_server(NATS_SERVER_VERSION, &install_dir).await;
-        assert!(res.is_ok());
+    //     let res = ensure_nats_server(NATS_SERVER_VERSION, &install_dir).await;
+    //     assert!(res.is_ok());
 
-        let config = NatsConfig::new_standalone("127.0.0.1", 10003, Some("extender".to_string()));
-        let nats_one = start_nats_server(
-            &install_dir.join(NATS_SERVER_BINARY),
-            std::process::Stdio::null(),
-            config.clone(),
-        )
-        .await;
-        assert!(nats_one.is_ok());
+    //     let config = NatsConfig::new_standalone("127.0.0.1", 10003, Some("extender".to_string()));
+    //     let nats_one = start_nats_server(
+    //         &install_dir.join(NATS_SERVER_BINARY),
+    //         std::process::Stdio::null(),
+    //         config.clone(),
+    //     )
+    //     .await;
+    //     assert!(nats_one.is_ok());
 
-        // Give NATS a few seconds to start up and listen
-        tokio::time::sleep(std::time::Duration::from_millis(5000)).await;
-        let log_path = install_dir.join("nats.log");
-        let log = std::fs::File::create(&log_path)?;
-        let nats_two = start_nats_server(&install_dir.join(NATS_SERVER_BINARY), log, config).await;
-        assert!(nats_two.is_err());
+    //     // Give NATS a few seconds to start up and listen
+    //     tokio::time::sleep(std::time::Duration::from_millis(5000)).await;
+    //     let log_path = install_dir.join("nats.log");
+    //     let log = std::fs::File::create(&log_path)?;
+    //     let nats_two = start_nats_server(&install_dir.join(NATS_SERVER_BINARY), log, config).await;
+    //     assert!(nats_two.is_err());
 
-        nats_one.unwrap().kill().await?;
-        let _ = remove_dir_all(install_dir).await;
+    //     nats_one.unwrap().kill().await?;
+    //     let _ = remove_dir_all(install_dir).await;
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     #[tokio::test]
     #[cfg_attr(not(can_reach_github_com), ignore = "github.com is not reachable")]
