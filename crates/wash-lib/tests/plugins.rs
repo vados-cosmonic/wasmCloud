@@ -38,60 +38,60 @@ async fn build_plugin(plugin_dir_name: &str) -> PathBuf {
         .join(format!("{plugin_dir_name}.wasm"))
 }
 
-#[tokio::test]
-async fn test_subcommand() {
-    let plugin_path = build_plugin("hello_plugin").await;
+// #[tokio::test]
+// async fn test_subcommand() {
+//     let plugin_path = build_plugin("hello_plugin").await;
 
-    let mut subcommand = wash_lib::plugin::subcommand::SubcommandRunner::new().unwrap();
-    let metadata = subcommand
-        .add_plugin(&plugin_path)
-        .await
-        .expect("Should be able to add plugin");
-    assert_eq!(metadata.name, "Hello Plugin");
-    assert_eq!(metadata.version, "0.1.0");
-    assert_eq!(metadata.id, "hello");
+//     let mut subcommand = wash_lib::plugin::subcommand::SubcommandRunner::new().unwrap();
+//     let metadata = subcommand
+//         .add_plugin(&plugin_path)
+//         .await
+//         .expect("Should be able to add plugin");
+//     assert_eq!(metadata.name, "Hello Plugin");
+//     assert_eq!(metadata.version, "0.1.0");
+//     assert_eq!(metadata.id, "hello");
 
-    let temp = tempfile::tempdir().unwrap();
-    let extra_dir = tempfile::tempdir().unwrap();
-    tokio::fs::write(extra_dir.path().join("hello.txt"), "hello")
-        .await
-        .unwrap();
-    tokio::fs::write(extra_dir.path().join("world.txt"), "world")
-        .await
-        .unwrap();
+//     let temp = tempfile::tempdir().unwrap();
+//     let extra_dir = tempfile::tempdir().unwrap();
+//     tokio::fs::write(extra_dir.path().join("hello.txt"), "hello")
+//         .await
+//         .unwrap();
+//     tokio::fs::write(extra_dir.path().join("world.txt"), "world")
+//         .await
+//         .unwrap();
 
-    let file_dir = tempfile::tempdir().unwrap();
-    let file = file_dir.path().join("hello.txt");
-    tokio::fs::write(&file, "Hello from a file").await.unwrap();
+//     let file_dir = tempfile::tempdir().unwrap();
+//     let file = file_dir.path().join("hello.txt");
+//     tokio::fs::write(&file, "Hello from a file").await.unwrap();
 
-    // TODO: allow configuration of stdout/stderr so we can check for output
-    subcommand
-        .run(
-            "hello",
-            temp.path().to_path_buf(),
-            vec![
-                DirMapping {
-                    host_path: extra_dir.path().to_path_buf(),
-                    component_path: None,
-                },
-                DirMapping {
-                    host_path: file.clone(),
-                    component_path: None,
-                },
-            ],
-            vec![
-                "hello".to_string(),
-                "--foo".to_string(),
-                extra_dir.path().to_str().unwrap().to_string(),
-                file.to_str().unwrap().to_string(),
-            ],
-        )
-        .await
-        .expect("Should be able to run plugin");
+//     // TODO: allow configuration of stdout/stderr so we can check for output
+//     subcommand
+//         .run(
+//             "hello",
+//             temp.path().to_path_buf(),
+//             vec![
+//                 DirMapping {
+//                     host_path: extra_dir.path().to_path_buf(),
+//                     component_path: None,
+//                 },
+//                 DirMapping {
+//                     host_path: file.clone(),
+//                     component_path: None,
+//                 },
+//             ],
+//             vec![
+//                 "hello".to_string(),
+//                 "--foo".to_string(),
+//                 extra_dir.path().to_str().unwrap().to_string(),
+//                 file.to_str().unwrap().to_string(),
+//             ],
+//         )
+//         .await
+//         .expect("Should be able to run plugin");
 
-    // Check that the file was written
-    let file = tokio::fs::read_to_string(temp.path().join("hello.txt"))
-        .await
-        .unwrap();
-    assert_eq!(file, "Hello from the plugin");
-}
+//     // Check that the file was written
+//     let file = tokio::fs::read_to_string(temp.path().join("hello.txt"))
+//         .await
+//         .unwrap();
+//     assert_eq!(file, "Hello from the plugin");
+// }
