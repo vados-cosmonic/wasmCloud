@@ -1,0 +1,40 @@
+name: mirror-docker-image
+
+on:
+  workflow_dispatch:
+    inputs:
+      image:
+        type: string
+        description: |
+          skopeo-compatible image ref to mirror (ex. 'repo/thing', 'azurecr.io/some/other')
+      tag:
+        type: string
+        description: |
+          Tag of the source image to mirror
+      output-image:
+        description: |
+          Image path under 'wasmcloud/mirrors' to use (ex. 'a' turns into 'wasmcloud/mirrors/a')
+        optional: true
+
+permissions: {}
+
+jobs:
+  mirror-docker-image:
+    #if: ${{ github.repository == 'wasmCloud/wasmCloud' }}
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - name: Install skopeo
+        uses: jaxxstorm/action-install-gh-release@25d5e2dd555cd74f1fab9ac1e6ea117acde2c0c4
+        with:
+          repo: containers/skopeo
+          tag: v1.12.0
+          cache: enable
+
+      - name: Copy image
+        shell: bash
+        #run: |
+        #  skopeo copy ${{ inputs.image }} docker://ghcr.io/wasmcloud/${{ inputs.output-image }}
+        run: |
+          skopeo copy ${{ inputs.image }} docker://ghcr.io/vados-cosmonic/mirrors/${{ inputs.output-image }}
