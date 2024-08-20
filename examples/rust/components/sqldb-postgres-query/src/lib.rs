@@ -25,8 +25,11 @@ CREATE TABLE IF NOT EXISTS example (
 
 /// A basic insert query, using Postgres `RETURNING` syntax,
 /// which returns the contents of the row that was inserted
+// const INSERT_QUERY: &str = r#"
+// INSERT INTO example (description, counter) VALUES ($1, $2) RETURNING *;
+// "#;
 const INSERT_QUERY: &str = r#"
-INSERT INTO example (description, counter) VALUES ($1, $2) RETURNING *;
+INSERT INTO example (description) VALUES ($1) RETURNING *;
 "#;
 
 /// A SELECT query, which takes the ID insert query, using Postgres `RETURNING` syntax,
@@ -38,7 +41,7 @@ SELECT description FROM example WHERE id = $1;
 impl Guest for QueryRunner {
     fn call() -> String {
         // First, ensure the right table is present
-        if let Err(e) = query(CREATE_TABLE_QUERY, &[]) {
+        if let Err(e) = query(CREATE_TABLE_QUERY, (&PgValue::Null, &PgValue::Null)) {
             return format!("ERROR - failed to create table: {e}");
         };
 
@@ -48,10 +51,10 @@ impl Guest for QueryRunner {
         // managed by the link between this component and it's provider
         let inserted_row: Vec<ResultRow> = match query(
             INSERT_QUERY,
-            &[
-                PgValue::Text("inserted example row!".into()),
-                PgValue::Integer(5i32),
-            ],
+            (
+                &PgValue::Text("inserted example row!".into()),
+                &PgValue::Integer(5i32),
+            ),
         ) {
             // We expect to get just one row, since we're searching by ID
             Ok(row) if row.len() == 1 => row,
@@ -81,7 +84,7 @@ impl Guest for QueryRunner {
         //
         // NOTE: normally you would not need this SELECT, thanks to RETURNING:
         // https://www.postgresql.org/docs/current/dml-returning.html
-        match query(SELECT_QUERY, &[id.clone()]) {
+        match query(SELECT_QUERY, (&id.clone(), &id.clone())) {
             Ok(rows) => format!("SUCCESS: inserted and manually retrieved new row:\n{rows:#?}"),
             Err(e) => format!("ERROR: failed to retrieve inserted row: {e}"),
         }

@@ -251,7 +251,7 @@ impl bindings::query::Handler<Option<Context>> for PostgresProvider {
         &self,
         ctx: Option<Context>,
         query: String,
-        params: Vec<PgValue>,
+        params: (PgValue, PgValue),
     ) -> Result<Result<Vec<ResultRow>, QueryError>> {
         propagate_trace_for_ctx!(ctx);
         let Some(Context {
@@ -264,7 +264,9 @@ impl bindings::query::Handler<Option<Context>> for PostgresProvider {
             )));
         };
 
-        Ok(self.do_query(&source_id, &query, params).await)
+        Ok(self
+            .do_query(&source_id, &query, vec![params.0, params.1])
+            .await)
     }
 }
 

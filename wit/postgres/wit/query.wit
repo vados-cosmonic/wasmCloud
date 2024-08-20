@@ -13,7 +13,7 @@ interface query {
   /// SELECT email,username FROM users WHERE uuid=$1;
   /// ```
   ///
-  query: func(query: string, params: list<pg-value>) -> result<list<result-row>, query-error>;
+  query: func(query: string, params: tuple<pg-value, pg-value>) -> result<list<result-row>, query-error>;
 }
 
 /// Interface for querying a Postgres database with prepared statements

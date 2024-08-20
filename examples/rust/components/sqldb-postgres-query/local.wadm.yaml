@@ -41,6 +41,6 @@ spec:
       type: capability
       properties:
         #image: ghcr.io/wasmcloud/sqldb-postgres:0.2.0
-        image: file://../../../../sqldb-postgres-provider.par.gz
+        image: file://../../../../src/bin/sqldb-postgres-provider/build/sqldb-postgres-provider.par.gz
         config:
           - name: 'default-postgres'
