@@ -2,8 +2,10 @@ name: wit-wasmcloud-postgres-publish
 
 on:
   push:
-    tags:
-      - 'wit-wasmcloud-postgres-v*'
+    branches:
+      - "chore(wit)=use-wkg-to-publish-wit"
+    # tags:
+    #   - 'wit-wasmcloud-postgres-v*'
 
 permissions:
   contents: read
@@ -29,22 +31,23 @@ jobs:
       run: |
           version=${GITHUB_REF_NAME#wit-wasmcloud-postgres-v}
           echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "version=0.1.0" >> "$GITHUB_OUTPUT"
           echo "tarball=wit-wasmcloud-postgres-${version}.tar.gz" >> "$GITHUB_OUTPUT"
           echo "version is ${version}"
     - name: Build
       run: |
-        tar cvzf ${{ steps.ctx.outputs.tarball }} -C wit postgres/wit
-    - name: Release
-      uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191
-      with:
-        files: ${{ steps.ctx.outputs.tarball }}
-        make_latest: "false"
+        tar cvzf "${{ steps.ctx.outputs.tarball }}" -C wit postgres/wit
+    # - name: Release
+    #   uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191
+    #   with:
+    #     files: ${{ steps.ctx.outputs.tarball }}
+    #     make_latest: "false"
     - name: Publish OCI image
       shell: bash
       run: |
-        wkg oci push "ghcr.io/${{ github.repository_owner }}/wit/wasmcloud-postgres:$VERSION" \
+        wkg oci push "ghcr.io/${{ github.repository_owner }}/wit/wasmcloud-postgres:${{ steps.ctx.outputs.version }}" \
         --annotation "org.opencontainers.image.description"="A WIT interface enabling Postgres SQL backends on wasmCloud" \
         --annotation "org.opencontainers.image.source"="https://github.com/wasmcloud/wasmcloud \
         --annotation "org.opencontainers.image.url"="https://wasmcloud.com \
-        --annotation "org.opencontainers.image.version"="$VERSION" \
+        --annotation "org.opencontainers.image.version"="${{ steps.ctx.outputs.version }}" \
         --annotation "org.opencontainers.image.licenses"="Apache-2.0 WITH LLVM-exception"
