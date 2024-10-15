@@ -8,7 +8,7 @@ use console::style;
 use notify::event::ModifyKind;
 use notify::{event::EventKind, Event as NotifyEvent, RecursiveMode, Watcher};
 use semver::Version;
-use session::{SessionMetadata, WashDevSession};
+use session::{SessionMetadata, SessionProcesses, WashDevSession};
 use tokio::{select, sync::mpsc};
 
 use wash_lib::cli::{CommandOutput, CommonPackageArgs};
@@ -43,6 +43,9 @@ const SESSIONS_FILE_VERSION: Version = Version::new(0, 1, 0);
 const SESSION_ID_LEN: usize = 6;
 
 const DEFAULT_PROVIDER_STOP_TIMEOUT_MS: u64 = 3000;
+
+/// The version of `nats-kv-secrets` to use with `wash dev` environments by default
+const NATS_KV_SECRETS_VERSION: &str = "0.1.1-rc.0";
 
 /// The path to the dev directory for wash
 async fn dev_dir() -> Result<PathBuf> {
@@ -133,11 +136,16 @@ pub async fn handle_command(
         emoji::INFO_SQUARE
     );
 
-    let (mut nats_child, mut wadm_child, mut wasmcloud_child) = (None, None, None);
+    let (mut nats, mut wadm, mut nats_kv_secrets, mut wasmcloud) = (None, None, None, None);
 
     // If there is not a running host for this session, then we can start one
     if wash_dev_session.host_data.is_none() {
-        (nats_child, wadm_child, wasmcloud_child) = wash_dev_session
+        SessionProcesses {
+            nats,
+            wadm,
+            nats_kv_secrets,
+            wasmcloud,
+        } = wash_dev_session
             .start_host(
                 cmd.wasmcloud_opts.clone(),
                 cmd.nats_opts.clone(),
@@ -177,7 +185,12 @@ pub async fn handle_command(
             ))
             .bold(),
         );
-        (nats_child, wadm_child, wasmcloud_child) = wash_dev_session
+        SessionProcesses {
+            nats,
+            wadm,
+            nats_kv_secrets,
+            wasmcloud,
+        } = wash_dev_session
             .start_host(
                 cmd.wasmcloud_opts.clone(),
                 cmd.nats_opts.clone(),
@@ -334,7 +347,7 @@ pub async fn handle_command(
                     }
 
                     // Ensure that the host exited, if not, kill the process forcefully
-                    if let Some(mut host) = wasmcloud_child {
+                    if let Some(mut host) = wasmcloud {
                         if tokio::time::timeout(std::time::Duration::from_secs(5), host.wait())
                             .await
                             .context("failed to wait for wasmcloud process to stop, forcefully terminating")
@@ -348,7 +361,7 @@ pub async fn handle_command(
                     }
 
                     // Stop WADM
-                    if let Some(mut wadm) = wadm_child {
+                    if let Some(mut wadm) = wadm {
                         eprintln!("{} Stopping wadm...", emoji::HOURGLASS_DRAINING);
                         wadm
                             .kill()
@@ -360,10 +373,17 @@ pub async fn handle_command(
                     }
 
                     // Stop NATS
-                    if let Some(mut nats) = nats_child {
+                    if let Some(mut nats) = nats {
                         eprintln!("{} Stopping NATS...", emoji::HOURGLASS_DRAINING);
                         nats.kill().await?;
                     }
+
+                    // Stop nats-kv-secrets
+                    if let Some(mut nats_kv_secrets) = nats_kv_secrets {
+                        eprintln!("{} Stopping nats-kv-secrets...", emoji::HOURGLASS_DRAINING);
+                        nats_kv_secrets.kill().await?;
+                    }
+
                 }
 
                 eprintln!("{} Dev session exited successfully", emoji::GREEN_CHECK);
