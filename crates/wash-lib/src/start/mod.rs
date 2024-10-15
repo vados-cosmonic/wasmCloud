@@ -83,3 +83,5 @@ mod wadm;
 pub use self::wadm::*;
 mod wasmcloud;
 pub use wasmcloud::*;
+
+pub mod secrets_nats_kv;
