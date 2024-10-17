@@ -95,7 +95,6 @@ wasm-pkg-core = { workspace = true }
 wasmcloud-control-interface = { workspace = true }
 wasmcloud-core = { workspace = true }
 wasmcloud-provider-sdk = { workspace = true }
-wasmcloud-secrets-client = { workspace = true }
 wasmcloud-secrets-types = { workspace = true }
 secrets-nats-kv = { workspace = true }
 weld-codegen = { workspace = true, features = ["wasmbus"] }

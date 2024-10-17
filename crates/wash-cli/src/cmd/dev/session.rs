@@ -25,7 +25,9 @@ use crate::cmd::up::{remove_wadm_pidfile, start_nats, NatsOpts, WadmOpts, Wasmcl
 use crate::config::{configure_host_env, DEFAULT_NATS_HOST};
 use crate::down::stop_nats;
 
-use super::{dev_dir, sessions_file_path, SESSIONS_FILE_VERSION, SESSION_ID_LEN};
+use super::{
+    dev_dir, sessions_file_path, SecretsNatsKvOpts, SESSIONS_FILE_VERSION, SESSION_ID_LEN,
+};
 
 /// Metadata related to a single `wash dev` session
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -234,6 +236,7 @@ impl WashDevSession {
         mut wasmcloud_opts: WasmcloudOpts,
         nats_opts: NatsOpts,
         wadm_opts: WadmOpts,
+        secrets_nats_kv_opts: SecretsNatsKvOpts,
     ) -> Result<SessionProcesses> {
         if self.host_data.is_some() {
             return Ok(SessionProcesses::default());
@@ -342,7 +345,10 @@ impl WashDevSession {
             &install_dir,
             &nats_kv_secrets_binary,
             nats_kv_secrets_log_file.into_std().await,
-            None,
+            secrets_nats_kv_opts
+                .try_into()
+                .map(Some)
+                .context("failed to convert opts into secrets-nats-kv config")?,
             CommandGroupUsage::CreateNew,
         )
         .await
@@ -417,6 +423,7 @@ impl WashDevSession {
                     .await
                     .context("failed to read line from file")?
                 {
+                    eprintln!("LINE: {line}");
                     if let Some(host_id) = line
                         .split_once("host_id=\"")
                         .map(|(_, rhs)| &rhs[0..rhs.len() - 1])
