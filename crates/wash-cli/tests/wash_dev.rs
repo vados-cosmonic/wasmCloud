@@ -13,30 +13,142 @@ use wasmcloud_control_interface::{ClientBuilder as CtlClientBuilder, Host};
 mod common;
 use common::{
     find_open_port, init, start_nats, test_dir_with_subfolder, wait_for_no_hosts, wait_for_no_nats,
+    TestSetup,
 };
 
-#[tokio::test]
-#[serial_test::serial]
-async fn integration_dev_hello_component_serial() -> Result<()> {
+/// Test setup specific to wash dev
+#[derive(Default)]
+struct WashDevTestSetupArgs {
+    /// Name of the test (for on-disk output)
+    test_name: String,
+
+    /// Initialize a template with a given name, and the given template name
+    /// (e.g. `Some(("hello", "hello-world-rust"))`)
+    template_init: Option<(String, String)>,
+}
+
+struct WashDevTestSetup {
+    /// Project directory
+    project_dir: PathBuf,
+
+    /// NATS process & port to use for the test (if one was required
+    nats: Option<(tokio::process::Child, u16)>,
+
+    /// Client to use to interact with the lattice
+    ctl_client: wasmcloud_control_interface::Client,
+
+    /// Reusable [`common::TestSetup`], if a template initialization was specified
+    test_setup: Option<TestSetup>,
+}
+
+/// Basic test setup for `wash dev` tests
+async fn wash_dev_test_setup(
+    WashDevTestSetupArgs {
+        test_name,
+        template_init,
+    }: WashDevTestSetupArgs,
+) -> Result<WashDevTestSetup> {
     wait_for_no_hosts()
         .await
         .context("unexpected wasmcloud instance(s) running")?;
-    let test_setup = init(
-        /* component_name= */ "hello",
-        /* template_name= */ "hello-world-rust",
-    )
-    .await?;
-    let project_dir = test_setup.project_dir.clone();
 
-    let dir = test_dir_with_subfolder("dev_hello_component");
+    let dir = test_dir_with_subfolder(&test_name);
+
+    // Set up a test repository if one was provided
+    let (test_setup, project_dir) = match template_init {
+        Some((name, template)) => {
+            let test_setup = init(&name, &template)
+                .await
+                .with_context(|| format!("failed to setup project from template [{template}]"))?;
+            let project_dir = test_setup.project_dir.clone();
+            (Some(test_setup), project_dir)
+        }
+        None => (None, dir.clone()),
+    };
 
     wait_for_no_hosts()
         .await
         .context("one or more unexpected wasmcloud instances running")?;
 
+    // Start NATS
     let nats_port = find_open_port().await?;
-    let mut nats = start_nats(nats_port, &dir).await?;
+    let nats = start_nats(nats_port, &dir).await?;
 
+    // Create a ctl client to check the cluster
+    let ctl_client = CtlClientBuilder::new(
+        async_nats::connect(format!("127.0.0.1:{nats_port}"))
+            .await
+            .context("failed to create nats client")?,
+    )
+    .lattice("default")
+    .build();
+
+    Ok(WashDevTestSetup {
+        nats: Some((nats, nats_port)),
+        ctl_client,
+        project_dir,
+        test_setup,
+    })
+}
+
+/// Macro that makes it easy to tear down a test that utilizes a run of `wash dev`
+async fn teardown_wash_dev_test(
+    dev_cmd: Arc<RwLock<tokio::process::Child>>,
+    WashDevTestSetup { nats, .. }: WashDevTestSetup,
+) -> Result<()> {
+    let process_pid = dev_cmd
+        .write()
+        .await
+        .id()
+        .context("failed to get child process pid")?;
+
+    // Send ctrl + c signal to stop the process
+    // send SIGINT to the child
+    nix::sys::signal::kill(
+        nix::unistd::Pid::from_raw(process_pid as i32),
+        nix::sys::signal::Signal::SIGINT,
+    )
+    .expect("cannot send ctrl-c");
+
+    // Wait until the process stops
+    let _ = tokio::time::timeout(Duration::from_secs(15), dev_cmd.write().await.wait())
+        .await
+        .context("dev command did not exit")?;
+
+    wait_for_no_hosts()
+        .await
+        .context("wasmcloud instance failed to exit cleanly (processes still left over)")?;
+
+    // Kill the nats instance
+    if let Some((mut nats, _)) = nats {
+        nats.kill().await.map_err(|e| anyhow!(e))?;
+    }
+
+    wait_for_no_nats()
+        .await
+        .context("nats instance failed to exit cleanly (processes still left over)")?;
+
+    Ok(())
+}
+
+#[tokio::test]
+#[serial_test::serial]
+async fn integration_dev_hello_component_serial() -> Result<()> {
+    let setup = wash_dev_test_setup(WashDevTestSetupArgs {
+        test_name: "dev_hello_component".into(),
+        template_init: Some(("hello".into(), "hello-world-rust".into())),
+    })
+    .await?;
+
+    let nats_port = setup
+        .nats
+        .as_ref()
+        .context("missing nats setup for test")?
+        .1;
+    let test_setup = setup
+        .test_setup
+        .as_ref()
+        .context("missing test setup after template init")?;
     let dev_cmd = Arc::new(RwLock::new(
         test_setup
             .base_command()
@@ -56,7 +168,7 @@ async fn integration_dev_hello_component_serial() -> Result<()> {
     ));
     let watch_dev_cmd = dev_cmd.clone();
 
-    let signed_file_path = Arc::new(project_dir.join("build/http_hello_world_s.wasm"));
+    let signed_file_path = Arc::new(setup.project_dir.join("build/http_hello_world_s.wasm"));
     let expected_path = signed_file_path.clone();
 
     // Wait until the signed file is there (this means dev succeeded)
@@ -82,35 +194,7 @@ async fn integration_dev_hello_component_serial() -> Result<()> {
     .context("timed out while waiting for file path to get created")?;
     assert!(signed_file_path.exists(), "signed component file was built");
 
-    let process_pid = dev_cmd
-        .write()
-        .await
-        .id()
-        .context("failed to get child process pid")?;
-
-    // Send ctrl + c signal to stop the process
-    // send SIGINT to the child
-    nix::sys::signal::kill(
-        nix::unistd::Pid::from_raw(process_pid as i32),
-        nix::sys::signal::Signal::SIGINT,
-    )
-    .expect("cannot send ctrl-c");
-
-    // Wait until the process stops
-    let _ = tokio::time::timeout(Duration::from_secs(15), dev_cmd.write().await.wait())
-        .await
-        .context("dev command did not exit")?;
-
-    wait_for_no_hosts()
-        .await
-        .context("wasmcloud instance failed to exit cleanly (processes still left over)")?;
-
-    // Kill the nats instance
-    nats.kill().await.map_err(|e| anyhow!(e))?;
-
-    wait_for_no_nats()
-        .await
-        .context("nats instance failed to exit cleanly (processes still left over)")?;
+    teardown_wash_dev_test(dev_cmd, setup).await?;
 
     Ok(())
 }
@@ -118,37 +202,18 @@ async fn integration_dev_hello_component_serial() -> Result<()> {
 /// Ensure that overriding manifest YAML works
 #[tokio::test]
 #[serial_test::serial]
-async fn integration_override_manifest_yaml_serial() -> Result<()> {
-    wait_for_no_hosts()
-        .await
-        .context("unexpected wasmcloud instance(s) running")?;
-
-    let test_setup = init("hello", "hello-world-rust").await?;
-    let project_dir = test_setup.project_dir.clone();
-    let dir = test_dir_with_subfolder("dev_hello_component");
-
-    wait_for_no_hosts()
-        .await
-        .context("one or more unexpected wasmcloud instances running")?;
-
-    // Start NATS
-    let nats_port = find_open_port().await?;
-    let mut nats = start_nats(nats_port, &dir).await?;
-
-    // Create a ctl client to check the cluster
-    let ctl_client = CtlClientBuilder::new(
-        async_nats::connect(format!("127.0.0.1:{nats_port}"))
-            .await
-            .context("failed to create nats client")?,
-    )
-    .lattice("default")
-    .build();
+async fn integration_dev_override_manifest_yaml_serial() -> Result<()> {
+    let setup = wash_dev_test_setup(WashDevTestSetupArgs {
+        test_name: "wash_dev_integration_override_manifest_yaml".into(),
+        template_init: Some(("hello".into(), "hello-world-rust".into())),
+    })
+    .await?;
 
     // Write out the fixture configuration to disk
     let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("./tests/fixtures/wadm/hello-world-rust-dev-override.yaml");
     tokio::fs::write(
-        project_dir.join("test.wadm.yaml"),
+        setup.project_dir.join("test.wadm.yaml"),
         tokio::fs::read(&fixture_path)
             .await
             .with_context(|| format!("failed to read fixture @ [{}]", fixture_path.display()))?,
@@ -157,7 +222,7 @@ async fn integration_override_manifest_yaml_serial() -> Result<()> {
     .context("failed to write out fixture file")?;
 
     // Manipulate the wasmcloud.toml for the test project and override the manifest
-    let wasmcloud_toml_path = project_dir.join("wasmcloud.toml");
+    let wasmcloud_toml_path = setup.project_dir.join("wasmcloud.toml");
     let mut wasmcloud_toml = tokio::fs::File::options()
         .append(true)
         .open(&wasmcloud_toml_path)
@@ -183,6 +248,15 @@ manifests = [
     wasmcloud_toml.flush().await?;
 
     // Run wash dev
+    let nats_port = setup
+        .nats
+        .as_ref()
+        .context("missing nats setup for test")?
+        .1;
+    let test_setup = setup
+        .test_setup
+        .as_ref()
+        .context("missing test setup after template init")?;
     let dev_cmd = Arc::new(RwLock::new(
         test_setup
             .base_command()
@@ -205,7 +279,8 @@ manifests = [
     // Get the host that was created
     let host = tokio::time::timeout(Duration::from_secs(10), async {
         loop {
-            if let Some(h) = ctl_client
+            if let Some(h) = setup
+                .ctl_client
                 .get_hosts()
                 .await
                 .map_err(|e| anyhow!("failed to get hosts: {e}"))
@@ -229,6 +304,7 @@ manifests = [
         .to_string();
 
     // Wait until the ferris-says component is present on the host
+    let ctl_client = setup.ctl_client.clone();
     let _ = tokio::time::timeout(
         Duration::from_secs(60),
         tokio::spawn(async move {
@@ -262,35 +338,7 @@ manifests = [
     .await
     .context("timed out while waiting for file path to get created")?;
 
-    let process_pid = dev_cmd
-        .write()
-        .await
-        .id()
-        .context("failed to get child process pid")?;
-
-    // Send ctrl + c signal to stop the process
-    // send SIGINT to the child
-    nix::sys::signal::kill(
-        nix::unistd::Pid::from_raw(process_pid as i32),
-        nix::sys::signal::Signal::SIGINT,
-    )
-    .expect("cannot send ctrl-c");
-
-    // Wait until the process stops
-    let _ = tokio::time::timeout(Duration::from_secs(15), dev_cmd.write().await.wait())
-        .await
-        .context("dev command did not exit")?;
-
-    wait_for_no_hosts()
-        .await
-        .context("wasmcloud instance failed to exit cleanly (processes still left over)")?;
-
-    // Kill the nats instance
-    nats.kill().await.map_err(|e| anyhow!(e))?;
-
-    wait_for_no_nats()
-        .await
-        .context("nats instance failed to exit cleanly (processes still left over)")?;
+    teardown_wash_dev_test(dev_cmd, setup).await?;
 
     Ok(())
 }
@@ -298,41 +346,22 @@ manifests = [
 /// Ensure that overriding by interface via project config YAML works
 #[tokio::test]
 #[serial_test::serial]
-async fn integration_override_via_interface_serial() -> Result<()> {
-    wait_for_no_hosts()
-        .await
-        .context("unexpected wasmcloud instance(s) running")?;
-
-    let test_setup = init("hello", "hello-world-rust").await?;
-    let project_dir = test_setup.project_dir.clone();
-    let dir = test_dir_with_subfolder("dev_hello_component");
+async fn integration_dev_override_via_interface_serial() -> Result<()> {
+    let setup = wash_dev_test_setup(WashDevTestSetupArgs {
+        test_name: "wash_dev_integration_override_via_interface".into(),
+        template_init: Some(("hello".into(), "hello-world-rust".into())),
+    })
+    .await?;
 
     // Create a dir for generated manifests
-    let generated_manifests_dir = project_dir.join("generated-manifests");
+    let generated_manifests_dir = setup.project_dir.join("generated-manifests");
     tokio::fs::create_dir(&generated_manifests_dir).await?;
-
-    wait_for_no_hosts()
-        .await
-        .context("one or more unexpected wasmcloud instances running")?;
-
-    // Start NATS
-    let nats_port = find_open_port().await?;
-    let mut nats = start_nats(nats_port, &dir).await?;
-
-    // Create a ctl client to check the cluster
-    let ctl_client = CtlClientBuilder::new(
-        async_nats::connect(format!("127.0.0.1:{nats_port}"))
-            .await
-            .context("failed to create nats client")?,
-    )
-    .lattice("default")
-    .build();
 
     // Write out the fixture configuration to disk
     let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("./tests/fixtures/wadm/hello-world-rust-dev-override.yaml");
     tokio::fs::write(
-        project_dir.join("test.wadm.yaml"),
+        setup.project_dir.join("test.wadm.yaml"),
         tokio::fs::read(&fixture_path)
             .await
             .with_context(|| format!("failed to read fixture @ [{}]", fixture_path.display()))?,
@@ -341,7 +370,7 @@ async fn integration_override_via_interface_serial() -> Result<()> {
     .context("failed to write out fixture file")?;
 
     // Manipulate the wasmcloud.toml for the test project and override the manifest
-    let wasmcloud_toml_path = project_dir.join("wasmcloud.toml");
+    let wasmcloud_toml_path = setup.project_dir.join("wasmcloud.toml");
     let mut wasmcloud_toml = tokio::fs::File::options()
         .append(true)
         .open(&wasmcloud_toml_path)
@@ -369,6 +398,15 @@ link_name = "default"
     wasmcloud_toml.flush().await?;
 
     // Run wash dev
+    let nats_port = setup
+        .nats
+        .as_ref()
+        .context("missing nats setup for test")?
+        .1;
+    let test_setup = setup
+        .test_setup
+        .as_ref()
+        .context("missing test setup after template init")?;
     let dev_cmd = Arc::new(RwLock::new(
         test_setup
             .base_command()
@@ -391,6 +429,7 @@ link_name = "default"
     let watch_dev_cmd = dev_cmd.clone();
 
     // Get the host that was created
+    let ctl_client = setup.ctl_client.clone();
     let host = tokio::time::timeout(Duration::from_secs(10), async {
         loop {
             if let Some(h) = ctl_client
@@ -417,6 +456,7 @@ link_name = "default"
         .to_string();
 
     // Wait until the http-hello-world component is present on the host
+    let ctl_client = setup.ctl_client.clone();
     let _ = tokio::time::timeout(
         Duration::from_secs(60),
         tokio::spawn(async move {
@@ -472,40 +512,12 @@ link_name = "default"
         .components()
         .find(|c| {
             matches!(
-                c.properties, 
+                c.properties,
                 Properties::Capability { ref properties } if properties.image == "ghcr.io/wasmcloud/http-server:0.23.0")
         })
         .context("missing http provider component in manifest w/ updated image_ref")?;
 
-    let process_pid = dev_cmd
-        .write()
-        .await
-        .id()
-        .context("failed to get child process pid")?;
-
-    // Send ctrl + c signal to stop the process
-    // send SIGINT to the child
-    nix::sys::signal::kill(
-        nix::unistd::Pid::from_raw(process_pid as i32),
-        nix::sys::signal::Signal::SIGINT,
-    )
-    .expect("cannot send ctrl-c");
-
-    // Wait until the process stops
-    let _ = tokio::time::timeout(Duration::from_secs(15), dev_cmd.write().await.wait())
-        .await
-        .context("dev command did not exit")?;
-
-    wait_for_no_hosts()
-        .await
-        .context("wasmcloud instance failed to exit cleanly (processes still left over)")?;
-
-    // Kill the nats instance
-    nats.kill().await.map_err(|e| anyhow!(e))?;
-
-    wait_for_no_nats()
-        .await
-        .context("nats instance failed to exit cleanly (processes still left over)")?;
+    teardown_wash_dev_test(dev_cmd, setup).await?;
 
     Ok(())
 }

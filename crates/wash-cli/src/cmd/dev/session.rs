@@ -336,9 +336,9 @@ impl WashDevSession {
                     )
                 })?;
         let nats_kv_secrets_binary =
-            wash_lib::start::nats_kv_secrets::ensure_binary(NATS_KV_SECRETS_VERSION, &install_dir)
+            wash_lib::start::secrets_nats_kv::ensure_binary(NATS_KV_SECRETS_VERSION, &install_dir)
                 .await?;
-        let nats_kv_secrets_child = match wash_lib::start::nats_kv_secrets::start_binary(
+        let nats_kv_secrets_child = match wash_lib::start::secrets_nats_kv::start_binary(
             &install_dir,
             &nats_kv_secrets_binary,
             nats_kv_secrets_log_file.into_std().await,

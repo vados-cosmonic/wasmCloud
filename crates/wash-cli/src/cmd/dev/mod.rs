@@ -45,7 +45,7 @@ const SESSION_ID_LEN: usize = 6;
 const DEFAULT_PROVIDER_STOP_TIMEOUT_MS: u64 = 3000;
 
 /// The version of `nats-kv-secrets` to use with `wash dev` environments by default
-const NATS_KV_SECRETS_VERSION: &str = "0.1.1-rc.0";
+const NATS_KV_SECRETS_VERSION: &str = "v0.1.1-rc.0";
 
 /// The path to the dev directory for wash
 async fn dev_dir() -> Result<PathBuf> {
