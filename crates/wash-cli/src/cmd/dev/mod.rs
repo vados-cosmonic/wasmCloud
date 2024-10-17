@@ -266,10 +266,12 @@ pub async fn handle_command(
     })?;
     watcher.watch(&project_path.clone(), RecursiveMode::Recursive)?;
 
-    // Build sup state for the run loop
+    // Build up state for the run loop
     let mut run_loop_state = devloop::RunLoopState {
         dev_session: &mut wash_dev_session,
         nats_client: &nats_client,
+        secrets_subject_base: "wasmcloud.secrets".into(),
+        server_xkey: nkeys::XKey::new(),
         ctl_client: &ctl_client,
         project_cfg: &project_cfg,
         lattice,
