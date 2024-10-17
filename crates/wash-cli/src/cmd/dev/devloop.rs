@@ -25,7 +25,7 @@ use super::DEFAULT_PROVIDER_STOP_TIMEOUT_MS;
 pub(crate) struct RunLoopState<'a> {
     pub(crate) dev_session: &'a mut WashDevSession,
     pub(crate) nats_client: &'a async_nats::Client,
-    pub(crate) server_xkey: nkeys::XKey,
+    pub(crate) host_xkey: nkeys::XKey,
     pub(crate) secrets_subject_base: String,
     pub(crate) ctl_client: &'a CtlClient,
     pub(crate) project_cfg: &'a ProjectConfig,

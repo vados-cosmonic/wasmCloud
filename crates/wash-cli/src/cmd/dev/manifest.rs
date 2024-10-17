@@ -316,7 +316,7 @@ async fn update_secret_properties_by_spec(
                         secrets_nats_kv::client::put_secret(
                             state.nats_client,
                             &state.secrets_subject_base,
-                            &state.server_xkey,
+                            &state.host_xkey,
                             psr,
                         )
                         .await
