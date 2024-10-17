@@ -120,7 +120,7 @@ pub struct DevCommand {
 
 /// Handle `wash dev`
 pub async fn handle_command(
-    cmd: DevCommand,
+    mut cmd: DevCommand,
     _output_kind: wash_lib::cli::OutputKind,
 ) -> Result<CommandOutput> {
     let current_dir = std::env::current_dir()?;
@@ -135,6 +135,22 @@ pub async fn handle_command(
         "{} Resolved wash session ID [{session_id}]",
         emoji::INFO_SQUARE
     );
+
+    // Generate an xkey for the host, if one was not already provided
+    let host_xkey = match cmd.wasmcloud_opts.host_seed {
+        Some(ref pk) => {
+            nkeys::XKey::from_seed(pk).context("failed to generate host xkey from provided seed")?
+        }
+        None => {
+            let new_xkey = nkeys::XKey::new();
+            cmd.wasmcloud_opts.host_seed = Some(
+                new_xkey
+                    .private_key()
+                    .context("failed to get server xkey private data")?,
+            );
+            new_xkey
+        }
+    };
 
     let (mut nats, mut wadm, mut nats_kv_secrets, mut wasmcloud) = (None, None, None, None);
 
@@ -271,7 +287,7 @@ pub async fn handle_command(
         dev_session: &mut wash_dev_session,
         nats_client: &nats_client,
         secrets_subject_base: "wasmcloud.secrets".into(),
-        server_xkey: nkeys::XKey::new(),
+        host_xkey,
         ctl_client: &ctl_client,
         project_cfg: &project_cfg,
         lattice,
