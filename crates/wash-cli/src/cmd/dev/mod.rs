@@ -5,6 +5,7 @@ use std::sync::Arc;
 use anyhow::{Context as _, Result};
 use clap::Parser;
 use console::style;
+use nkeys::XKey;
 use notify::event::ModifyKind;
 use notify::{event::EventKind, Event as NotifyEvent, RecursiveMode, Watcher};
 use semver::Version;
@@ -47,26 +48,26 @@ const DEFAULT_PROVIDER_STOP_TIMEOUT_MS: u64 = 3000;
 /// The version of `nats-kv-secrets` to use with `wash dev` environments by default
 const NATS_KV_SECRETS_VERSION: &str = "v0.1.1-rc.0";
 
-/// The path to the dev directory for wash
-async fn dev_dir() -> Result<PathBuf> {
-    let dir = wash_lib::config::dev_dir().context("failed to resolve config dir")?;
-    if !tokio::fs::try_exists(&dir)
-        .await
-        .context("failed to check if dev dir exists")?
-    {
-        tokio::fs::create_dir(&dir)
-            .await
-            .with_context(|| format!("failed to create dir [{}]", dir.display()))?
-    }
-    Ok(dir)
+/// Options for secrets-nats-kv
+#[derive(Debug, Clone, Parser)]
+pub struct SecretsNatsKvOpts {
+    /// Seed for the transit XKey
+    #[clap(short, long, env = "SECRETS_NATS_KV_TRANSIT_XKEY_SEED")]
+    secrets_nats_kv_transit_xkey_seed: Option<String>,
+    /// Seed for the encryption XKey
+    #[clap(short, long, env = "SECRETS_NATS_KV_ENCRYPTION_XKEY_SEED")]
+    secrets_nats_kv_encryption_xkey_seed: Option<String>,
 }
 
-/// Retrieve the path to the file that stores
-async fn sessions_file_path() -> Result<PathBuf> {
-    dev_dir()
-        .await
-        .map(|p| p.join(WASH_SESSIONS_FILE_NAME))
-        .context("failed to get dev dir")
+impl TryInto<wash_lib::start::secrets_nats_kv::Config> for SecretsNatsKvOpts {
+    type Error = anyhow::Error;
+
+    fn try_into(self) -> Result<wash_lib::start::secrets_nats_kv::Config> {
+        let mut cfg = wash_lib::start::secrets_nats_kv::Config::default();
+        cfg.transit_xkey_seed = self.secrets_nats_kv_transit_xkey_seed;
+        cfg.encryption_xkey_seed = self.secrets_nats_kv_encryption_xkey_seed;
+        Ok(cfg)
+    }
 }
 
 #[derive(Debug, Clone, Parser)]
@@ -79,6 +80,9 @@ pub struct DevCommand {
 
     #[clap(flatten)]
     pub wadm_opts: WadmOpts,
+
+    #[clap(flatten)]
+    pub secrets_nats_kv_opts: SecretsNatsKvOpts,
 
     #[clap(flatten)]
     pub package_args: CommonPackageArgs,
@@ -118,6 +122,28 @@ pub struct DevCommand {
     pub skip_wit_fetch: bool,
 }
 
+/// The path to the dev directory for wash
+async fn dev_dir() -> Result<PathBuf> {
+    let dir = wash_lib::config::dev_dir().context("failed to resolve config dir")?;
+    if !tokio::fs::try_exists(&dir)
+        .await
+        .context("failed to check if dev dir exists")?
+    {
+        tokio::fs::create_dir(&dir)
+            .await
+            .with_context(|| format!("failed to create dir [{}]", dir.display()))?
+    }
+    Ok(dir)
+}
+
+/// Retrieve the path to the file that stores
+async fn sessions_file_path() -> Result<PathBuf> {
+    dev_dir()
+        .await
+        .map(|p| p.join(WASH_SESSIONS_FILE_NAME))
+        .context("failed to get dev dir")
+}
+
 /// Handle `wash dev`
 pub async fn handle_command(
     mut cmd: DevCommand,
@@ -136,19 +162,20 @@ pub async fn handle_command(
         emoji::INFO_SQUARE
     );
 
-    // Generate an xkey for the host, if one was not already provided
-    let host_xkey = match cmd.wasmcloud_opts.host_seed {
-        Some(ref pk) => {
-            nkeys::XKey::from_seed(pk).context("failed to generate host xkey from provided seed")?
+    // Get or generate the XKeys for use when directly accessing the secrets backend,
+    // ensuring that the configuration is provided if it's not already
+    let secrets_transit_xkey = match &cmd.secrets_nats_kv_opts.secrets_nats_kv_transit_xkey_seed {
+        Some(s) => {
+            XKey::from_seed(&s).context("failed to generate transit xkey from provided seed")?
         }
         None => {
-            let new_xkey = nkeys::XKey::new();
-            cmd.wasmcloud_opts.host_seed = Some(
-                new_xkey
-                    .private_key()
-                    .context("failed to get server xkey private data")?,
+            let new_key = XKey::new();
+            cmd.secrets_nats_kv_opts.secrets_nats_kv_transit_xkey_seed = Some(
+                new_key
+                    .seed()
+                    .context("failed to generate seed from new xkey")?,
             );
-            new_xkey
+            new_key
         }
     };
 
@@ -166,6 +193,7 @@ pub async fn handle_command(
                 cmd.wasmcloud_opts.clone(),
                 cmd.nats_opts.clone(),
                 cmd.wadm_opts.clone(),
+                cmd.secrets_nats_kv_opts.clone(),
             )
             .await
             .with_context(|| format!("failed to start host for session [{session_id}]"))?;
@@ -211,6 +239,7 @@ pub async fn handle_command(
                 cmd.wasmcloud_opts.clone(),
                 cmd.nats_opts.clone(),
                 cmd.wadm_opts.clone(),
+                cmd.secrets_nats_kv_opts.clone(),
             )
             .await
             .context("failed to start host for session")?;
@@ -287,7 +316,7 @@ pub async fn handle_command(
         dev_session: &mut wash_dev_session,
         nats_client: &nats_client,
         secrets_subject_base: "wasmcloud.secrets".into(),
-        host_xkey,
+        secrets_transit_xkey,
         ctl_client: &ctl_client,
         project_cfg: &project_cfg,
         lattice,
