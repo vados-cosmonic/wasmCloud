@@ -130,6 +130,14 @@ jobs:
         run: wash build
         working-directory: examples/${{ matrix.project.lang }}/providers/${{ matrix.project.name }}
 
+      # Cache wash downloads
+      - name: Cache wash downloads
+        uses: actions/cache@2cdf405574d6ef1f33a1d12acccd3ae82f47b3f2
+        with:
+          key: wash-downloads-${{ runner.os }}-${{ github.ref_name }}
+          path: |
+            /home/runner/.wash/downloads
+
       # Run the local.wadm that comes with the example
       - name: test provider load
         if: ${{ matrix.project.test_deploy && matrix.wash-version == 'current' }}
