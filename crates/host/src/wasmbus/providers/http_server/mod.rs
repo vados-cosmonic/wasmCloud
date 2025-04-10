@@ -137,6 +137,7 @@ impl crate::wasmbus::Host {
                     }
                 }
 
+                tracing::debug!("STARTING HOST PROVIDER");
                 tasks.spawn(async move {
                     handle_provider_commands(provider, &conn, quit_rx, quit_tx, commands).await
                 });

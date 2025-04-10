@@ -122,8 +122,8 @@ pub async fn serve_incoming_http(
     Ok(response)
 }
 
-/// Utility function that enables waiting for a given HTTP status
-pub async fn wait_for_http_status(
+/// Utility function that enables waiting for a given condition on an HTTP request & response
+pub async fn wait_for_http_response(
     client: Arc<reqwest::Client>,
     req_fn: impl Fn(Arc<reqwest::Client>) -> Result<reqwest::Request>,
     status_predicate: impl Fn(&reqwest::Response) -> bool,
