@@ -37,7 +37,8 @@ pub(crate) struct Provider {
     /// Handle to the server task. The use of the [`JoinSet`] allows for the server to be
     /// gracefully shutdown when the provider is shutdown
     #[allow(unused)]
-    pub(crate) handle: JoinSet<()>,
+    pub(crate) handle: RwLock<JoinSet<()>>,
+
     /// Struct that holds the routing information based on host/component_id
     pub(crate) host_router: Arc<RwLock<Router>>,
 }
@@ -58,6 +59,11 @@ impl wasmcloud_provider_sdk::Provider for Provider {
             info.get_link_name(),
         )
         .await
+    }
+
+    #[instrument(level = "debug", skip_all)]
+    async fn shutdown(&self) -> anyhow::Result<()> {
+        self.shutdown().await
     }
 }
 
@@ -133,6 +139,13 @@ impl Provider {
             router.hosts.remove(&host);
         }
 
+        Ok(())
+    }
+
+    async fn shutdown(&self) -> anyhow::Result<()> {
+        debug!("GOT SHUTDOWN COMMAND!");
+        let _ = self.handle.write().await.shutdown().await;
+        debug!("FINISHED SHUTDOWN WAIT");
         Ok(())
     }
 }
@@ -268,7 +281,7 @@ impl Provider {
         .context("failed to listen on address for host based http server")?;
 
         Ok(Provider {
-            handle,
+            handle: RwLock::new(handle),
             host_router,
         })
     }
@@ -300,7 +313,7 @@ mod test {
     #[tokio::test]
     async fn can_manage_hosts() -> anyhow::Result<()> {
         let provider = super::Provider {
-            handle: JoinSet::new(),
+            handle: RwLock::new(JoinSet::new()),
             host_router: Arc::default(),
         };
 
