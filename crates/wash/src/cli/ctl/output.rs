@@ -1,35 +1,38 @@
 use std::collections::HashMap;
 
 use serde_json::json;
-use term_table::{
-    row::Row,
-    table_cell::{Alignment, TableCell},
-    Table,
-};
-use crate::lib::{cli::CommandOutput, plugin::subcommand::Metadata};
+use term_table::row::Row;
+use term_table::table_cell::{Alignment, TableCell};
+use term_table::Table;
 use wasmcloud_control_interface::{Host, HostInventory, Link};
 
+use crate::lib::cli::CommandOutput;
+use crate::lib::plugin::subcommand::Metadata;
 use crate::util::format_optional;
 
-#[must_use] pub fn get_hosts_output(hosts: Vec<Host>) -> CommandOutput {
+#[must_use]
+pub fn get_hosts_output(hosts: Vec<Host>) -> CommandOutput {
     let mut map = HashMap::new();
     map.insert("hosts".to_string(), json!(hosts));
     CommandOutput::new(hosts_table(hosts), map)
 }
 
-#[must_use] pub fn get_host_inventories_output(invs: Vec<HostInventory>) -> CommandOutput {
+#[must_use]
+pub fn get_host_inventories_output(invs: Vec<HostInventory>) -> CommandOutput {
     let mut map = HashMap::new();
     map.insert("inventories".to_string(), json!(invs));
     CommandOutput::new(host_inventories_table(invs), map)
 }
 
-#[must_use] pub fn get_claims_output(claims: Vec<HashMap<String, String>>) -> CommandOutput {
+#[must_use]
+pub fn get_claims_output(claims: Vec<HashMap<String, String>>) -> CommandOutput {
     let mut map = HashMap::new();
     map.insert("claims".to_string(), json!(claims));
     CommandOutput::new(claims_table(claims), map)
 }
 
-#[must_use] pub fn links_table(mut list: Vec<Link>) -> String {
+#[must_use]
+pub fn links_table(mut list: Vec<Link>) -> String {
     // Sort the list based on the `source_id` field in ascending order
     list.sort_by(|a, b| a.source_id().cmp(b.source_id()));
 
@@ -65,7 +68,8 @@ use crate::util::format_optional;
 }
 
 /// Helper function to transform a Host list into a table string for printing
-#[must_use] pub fn hosts_table(mut hosts: Vec<Host>) -> String {
+#[must_use]
+pub fn hosts_table(mut hosts: Vec<Host>) -> String {
     // Sort hosts by uptime_seconds in descending order
     // hosts.sort_by(|a, b| b.uptime_seconds().cmp(&a.uptime_seconds()));
     hosts.sort_by_key(|a| std::cmp::Reverse(a.uptime_seconds()));
@@ -91,7 +95,8 @@ use crate::util::format_optional;
 }
 
 /// Helper function to transform a `HostInventory` into a table string for printing
-#[must_use] pub fn host_inventories_table(mut invs: Vec<HostInventory>) -> String {
+#[must_use]
+pub fn host_inventories_table(mut invs: Vec<HostInventory>) -> String {
     let mut table = Table::new();
     crate::util::configure_table_style(&mut table, 3);
 
@@ -217,7 +222,8 @@ use crate::util::format_optional;
 }
 
 /// Helper function to transform a `ClaimsList` into a table string for printing
-#[must_use] pub fn claims_table(list: Vec<HashMap<String, String>>) -> String {
+#[must_use]
+pub fn claims_table(list: Vec<HashMap<String, String>>) -> String {
     let mut table = Table::new();
     crate::util::configure_table_style(&mut table, 2);
 
@@ -287,7 +293,8 @@ use crate::util::format_optional;
 }
 
 /// Helper function to transform a list of plugin metadata into a table string for printing
-#[must_use] pub fn plugins_table(list: Vec<&Metadata>) -> String {
+#[must_use]
+pub fn plugins_table(list: Vec<&Metadata>) -> String {
     let mut table = Table::new();
     crate::util::configure_table_style(&mut table, 4);
 

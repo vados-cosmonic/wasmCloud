@@ -1,13 +1,15 @@
+//! Implementation for `wash config delete`
+
 use std::collections::HashMap;
 
 use serde_json::json;
-use crate::lib::cli::{CliConnectionOpts, CommandOutput, OutputKind};
-use crate::lib::config::WashConnectionOptions;
 use wasmcloud_secrets_types::SECRET_PREFIX;
 
 use crate::appearance::spinner::Spinner;
+use crate::cli::cmd::secrets::is_secret;
 use crate::errors::suggest_run_host_error;
-use crate::secrets::is_secret;
+use crate::lib::cli::{CliConnectionOpts, CommandOutput, OutputKind};
+use crate::lib::config::WashConnectionOptions;
 
 /// Invoke `wash config delete` (sub)command
 pub async fn invoke(

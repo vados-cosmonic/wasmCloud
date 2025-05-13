@@ -1,15 +1,13 @@
-use std::{
-    fs::File,
-    io::Read,
-    path::{Path, PathBuf},
-};
+use std::fs::File;
+use std::io::Read;
+use std::path::{Path, PathBuf};
 
-use crate::lib::{
-    config::{cfg_dir, DEFAULT_NATS_TIMEOUT_MS},
-    plugin::{subcommand::SubcommandRunner, PLUGIN_DIR},
-};
 use anyhow::{Context, Result};
 use term_table::{Table, TableStyle};
+
+use crate::lib::config::{cfg_dir, DEFAULT_NATS_TIMEOUT_MS};
+use crate::lib::plugin::subcommand::SubcommandRunner;
+use crate::lib::plugin::PLUGIN_DIR;
 
 const MAX_TERMINAL_WIDTH: usize = 120;
 

@@ -3,28 +3,18 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use crate::lib::cli::CommandOutput;
-use crate::lib::config::cfg_dir;
 use anyhow::{bail, Context, Result};
 use clap::{Args, Subcommand};
-use clap_complete::{generator::generate_to, shells::Shell};
+use clap_complete::generator::generate_to;
+use clap_complete::shells::Shell;
+
+use crate::lib::cli::CommandOutput;
+use crate::lib::config::cfg_dir;
 
 const TOKEN_FILE: &str = ".completion_suggested";
 const COMPLETION_DOC_URL: &str =
     "https://github.com/wasmCloud/wasmCloud/blob/main/crates/wash/Completions.md";
 const SLACK_URL: &str = "https://slack.wasmcloud.com";
-
-fn instructions() -> String {
-    format!(
-        "🐚 Autocomplete available! To configure autocomplete with your shell, follow the instructions at\n   {COMPLETION_DOC_URL}"
-    )
-}
-
-fn feedback() -> String {
-    format!(
-        "📝 Feedback wanted! If you want to suggest an improvement or would like assistance, join the community at\n   {SLACK_URL}"
-    )
-}
 
 #[derive(Debug, Clone, Args)]
 pub struct CompletionOpts {
@@ -104,4 +94,18 @@ pub fn handle_command(
             e
         ),
     }
+}
+
+/// Generate string showing instructions
+fn instructions() -> String {
+    format!(
+        "🐚 Autocomplete available! To configure autocomplete with your shell, follow the instructions at\n   {COMPLETION_DOC_URL}"
+    )
+}
+
+/// Generate string detailing how to provide feedback
+fn feedback() -> String {
+    format!(
+        "📝 Feedback wanted! If you want to suggest an improvement or would like assistance, join the community at\n   {SLACK_URL}"
+    )
 }

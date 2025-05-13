@@ -1,10 +1,10 @@
 //! `wash config` related (sub)commands
 
 use clap::Subcommand;
-use crate::lib::cli::{input_vec_to_hashmap, CliConnectionOpts, CommandOutput, OutputKind};
 
+use crate::cli::cmd::secrets::ensure_not_secret;
 use crate::cmd;
-use crate::secrets::ensure_not_secret;
+use crate::lib::cli::{input_vec_to_hashmap, CliConnectionOpts, CommandOutput, OutputKind};
 
 pub(crate) mod delete;
 pub(crate) mod get;
