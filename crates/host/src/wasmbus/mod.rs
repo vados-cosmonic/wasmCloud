@@ -50,7 +50,7 @@ use wasmcloud_control_interface::{
 };
 use wasmcloud_core::{ComponentId, CTL_API_VERSION_1};
 use wasmcloud_runtime::capability::secrets::store::SecretValue;
-use wasmcloud_runtime::component::WrpcServeEvent;
+use wasmcloud_runtime::component::{from_string_map, Limits, WrpcServeEvent};
 use wasmcloud_runtime::Runtime;
 use wasmcloud_secrets_types::SECRET_PREFIX;
 use wasmcloud_tracing::context::TraceContextInjector;
@@ -216,6 +216,7 @@ struct Component {
     annotations: Annotations,
     /// Maximum number of instances of this component that can be running at once
     max_instances: NonZeroUsize,
+    limits: Option<Limits>,
     image_reference: Arc<str>,
     events: mpsc::Sender<WrpcServeEvent<<WrpcServer as wrpc_transport::Serve>::Context>>,
     permits: Arc<Semaphore>,
@@ -1158,6 +1159,12 @@ impl Host {
                         .image_ref(component.image_reference.to_string())
                         .annotations(component.annotations.clone().into_iter().collect())
                         .max_instances(component.max_instances.get().try_into().unwrap_or(u32::MAX))
+                        .limits(Some(
+                            component
+                                .limits
+                                .expect("component limits should be set")
+                                .to_string_map(),
+                        ))
                         .revision(
                             component
                                 .claims()
@@ -1271,6 +1278,7 @@ impl Host {
         image_reference: Arc<str>,
         id: Arc<str>,
         max_instances: NonZeroUsize,
+        limits: Option<Limits>,
         mut component: wasmcloud_runtime::Component<Handler>,
         handler: Handler,
     ) -> anyhow::Result<Arc<Component>> {
@@ -1280,7 +1288,7 @@ impl Host {
             "instantiating component"
         );
 
-        let max_execution_time = self.max_execution_time;
+        let max_execution_time = self.max_execution_time; // TODO: Needs approval to go ahead.
         component.set_max_execution_time(max_execution_time);
 
         let (events_tx, mut events_rx) = mpsc::channel(
@@ -1426,6 +1434,7 @@ impl Host {
             }),
             annotations: annotations.clone(),
             max_instances,
+            limits,
             image_reference: Arc::clone(&image_reference),
         }))
     }
@@ -1440,6 +1449,7 @@ impl Host {
         component_ref: Arc<str>,
         component_id: Arc<str>,
         max_instances: NonZeroUsize,
+        limits: Option<Limits>,
         annotations: &Annotations,
         config: ConfigBundle,
         secrets: HashMap<String, SecretBox<SecretValue>>,
@@ -1476,13 +1486,14 @@ impl Host {
             experimental_features: self.experimental_features,
             host_labels: Arc::clone(&self.labels),
         };
-        let component = wasmcloud_runtime::Component::new(&self.runtime, wasm)?;
+        let component = wasmcloud_runtime::Component::new(&self.runtime, wasm, limits)?;
         let component = self
             .instantiate_component(
                 annotations,
                 Arc::clone(&component_ref),
                 Arc::clone(&component_id),
                 max_instances,
+                limits,
                 component,
                 handler,
             )
@@ -1624,6 +1635,7 @@ impl Host {
         component_id: Arc<str>,
         host_id: &str,
         max_instances: u32,
+        component_limits: Option<HashMap<String, String>>,
         annotations: &Annotations,
         config: Vec<String>,
         wasm: anyhow::Result<Vec<u8>>,
@@ -1655,6 +1667,8 @@ impl Host {
                 permitted: true, ..
             } => (),
         };
+
+        let limits: Option<Limits> = from_string_map(component_limits.as_ref());
 
         let scaled_event = match (
             self.components
@@ -1691,6 +1705,7 @@ impl Host {
                             Arc::clone(&component_ref),
                             Arc::clone(&component_id),
                             max,
+                            limits,
                             annotations,
                             config,
                             secrets,
@@ -1784,6 +1799,7 @@ impl Host {
                             Arc::clone(&component_ref),
                             Arc::clone(&component.id),
                             max,
+                            limits,
                             component.component.clone(),
                             handler,
                         )
@@ -1843,8 +1859,12 @@ impl Host {
             }
 
             let new_component = self.fetch_component(&new_component_ref).await?;
-            let new_component = wasmcloud_runtime::Component::new(&self.runtime, &new_component)
-                .context("failed to initialize component")?;
+            let new_component = wasmcloud_runtime::Component::new(
+                &self.runtime,
+                &new_component,
+                existing_component.limits,
+            )
+            .context("failed to initialize component")?;
             let new_claims = new_component.claims().cloned();
             if let Some(ref claims) = new_claims {
                 self.store_claims(Claims::Component(claims.clone()))
@@ -1859,6 +1879,11 @@ impl Host {
                     Arc::clone(&new_component_ref),
                     Arc::clone(&component_id),
                     max,
+                    Some(
+                        existing_component
+                            .limits
+                            .expect("component limits should be set"),
+                    ),
                     new_component,
                     existing_component.handler.copy_for_new(),
                 )
