@@ -1,4 +1,4 @@
-//! A crate that implements the functionality behind the wasmCloud shell
+//! Shared functionality utilized by the wasmCloud shell
 //!
 //! The `wash` command line interface <https://github.com/wasmCloud/wasmCloud/tree/main/crates/wash > is a great place
 //! to find examples on how to fully utilize this library.
@@ -48,6 +48,8 @@ pub mod registry;
 pub mod spier;
 #[cfg(feature = "nats")]
 pub mod wait;
+
+pub mod provider;
 
 #[cfg(feature = "plugin")]
 pub mod plugin;
