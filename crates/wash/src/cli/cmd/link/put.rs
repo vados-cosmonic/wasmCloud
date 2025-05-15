@@ -4,11 +4,53 @@ use std::collections::HashMap;
 
 use anyhow::{anyhow, bail, Result};
 use serde_json::json;
-use crate::lib::cli::link::{put_link, LinkPutCommand};
-use crate::lib::cli::{CommandOutput, OutputKind};
 use wasmcloud_control_interface::Link;
 
+use crate::lib::cli::CliConnectionOpts;
+
 use crate::appearance::spinner::Spinner;
+use crate::lib::cli::link::{put_link, LinkPutCommand};
+use crate::lib::cli::{CommandOutput, OutputKind};
+
+#[derive(Parser, Debug, Clone)]
+pub struct LinkPutCommand {
+    #[clap(flatten)]
+    pub opts: CliConnectionOpts,
+
+    /// The ID of the component to link from
+    #[clap(name = "source-id", value_parser = validate_component_id)]
+    pub source_id: String,
+
+    /// The ID of the component to link to
+    #[clap(name = "target", value_parser = validate_component_id)]
+    pub target: String,
+
+    /// The WIT namespace of the link, e.g. "wasi" in "wasi:http/incoming-handler"
+    #[clap(name = "wit-namespace")]
+    pub wit_namespace: String,
+
+    /// The WIT package of the link, e.g. "http" in "wasi:http/incoming-handler"
+    #[clap(name = "wit-package")]
+    pub wit_package: String,
+
+    /// The interface of the link, e.g. "incoming-handler" in "wasi:http/incoming-handler"
+    #[clap(long = "interface", alias = "interfaces", required = true)]
+    pub interfaces: Vec<String>,
+
+    /// List of named configuration to make available to the source
+    #[clap(long = "source-config")]
+    pub source_config: Vec<String>,
+
+    /// List of named configuration to make available to the target
+    #[clap(long = "target-config")]
+    pub target_config: Vec<String>,
+
+    /// Link name, defaults to "default". Used for scenarios where a single source
+    /// may have multiple links to the same target, or different targets with the same
+    /// WIT namespace, package, and interface.
+    #[clap(short = 'l', long = "link-name")]
+    pub link_name: Option<String>,
+}
 
 /// Invoke `wash link put` subcommand
 pub async fn invoke(

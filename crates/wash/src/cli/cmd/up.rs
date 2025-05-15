@@ -1,24 +1,3 @@
-use crate::lib::app::{load_app_manifest, AppManifest, AppManifestSource};
-use crate::lib::cli::{CommandOutput, OutputKind};
-use crate::lib::common::{CommandGroupUsage, WASMCLOUD_HOST_VERSION_T};
-use crate::lib::config::{
-    create_nats_client_from_opts, downloads_dir, host_pid_file, DEFAULT_NATS_TIMEOUT_MS,
-};
-use crate::lib::context::fs::ContextDir;
-use crate::lib::context::ContextManager;
-use crate::lib::generate::emoji;
-use crate::lib::start::{
-    ensure_nats_server, ensure_wadm, ensure_wasmcloud, find_wasmcloud_binary, nats_pid_path,
-    new_patch_or_pre_1_0_0_minor_version_after_version_string, parse_version_string,
-    start_nats_server, start_wadm, start_wasmcloud_host, NatsConfig, WadmConfig,
-    GITHUB_WASMCLOUD_ORG, GITHUB_WASMCLOUD_WADM_REPO, GITHUB_WASMCLOUD_WASMCLOUD_REPO,
-    NATS_SERVER_BINARY, NATS_SERVER_CONF, WADM_PID,
-};
-use anyhow::{anyhow, bail, Context, Result};
-use async_nats::Client;
-use clap::Parser;
-use semver::Version;
-use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::fmt::Write;
 use std::io::ErrorKind;
@@ -26,6 +5,12 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+
+use anyhow::{anyhow, bail, Context, Result};
+use async_nats::Client;
+use clap::Parser;
+use semver::Version;
+use serde_json::{json, Value};
 use sysinfo::System;
 use tokio::fs::create_dir_all;
 use tokio::{
@@ -53,8 +38,24 @@ use crate::config::{
     WASMCLOUD_RPC_TLS, WASMCLOUD_RPC_TLS_CA_FILE, WASMCLOUD_RPC_TLS_FIRST, WASMCLOUD_SECRETS_TOPIC,
     WASMCLOUD_STRUCTURED_LOGGING_ENABLED,
 };
+use crate::lib::app::{load_app_manifest, AppManifest, AppManifestSource};
+use crate::lib::cli::{CommandOutput, OutputKind};
+use crate::lib::common::{CommandGroupUsage, WASMCLOUD_HOST_VERSION_T};
+use crate::lib::config::{
+    create_nats_client_from_opts, downloads_dir, host_pid_file, DEFAULT_NATS_TIMEOUT_MS,
+};
+use crate::lib::context::fs::ContextDir;
+use crate::lib::context::ContextManager;
+use crate::lib::generate::emoji;
+use crate::lib::start::{
+    ensure_nats_server, ensure_wadm, ensure_wasmcloud, find_wasmcloud_binary, nats_pid_path,
+    new_patch_or_pre_1_0_0_minor_version_after_version_string, parse_version_string,
+    start_nats_server, start_wadm, start_wasmcloud_host, NatsConfig, WadmConfig,
+    GITHUB_WASMCLOUD_ORG, GITHUB_WASMCLOUD_WADM_REPO, GITHUB_WASMCLOUD_WASMCLOUD_REPO,
+    NATS_SERVER_BINARY, NATS_SERVER_CONF, WADM_PID,
+};
 
-use crate::down::stop_nats;
+use crate::cli::cmd::down::stop_nats;
 
 #[derive(Parser, Debug, Clone)]
 pub struct UpCommand {

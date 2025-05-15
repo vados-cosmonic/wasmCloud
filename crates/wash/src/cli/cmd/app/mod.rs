@@ -1,25 +1,25 @@
 use std::collections::HashMap;
+use std::io::Write;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use crate::lib::app::{load_app_manifest, validate_manifest_file, AppManifest};
-use crate::lib::cli::get::parse_watch_interval;
-use crate::lib::cli::{CliConnectionOpts, CommandOutput, OutputKind};
-use crate::lib::config::WashConnectionOptions;
 use anyhow::{bail, Context};
 use async_nats::RequestErrorKind;
 use clap::{Args, Subcommand};
+use crossterm::{
+    cursor, execute,
+    terminal::{Clear, ClearType},
+};
 use serde_json::json;
 use wadm_client::Result;
 use wadm_types::api::ModelSummary;
 use wadm_types::validation::{ValidationFailure, ValidationOutput};
 
 use crate::appearance::spinner::Spinner;
-use crossterm::{
-    cursor, execute,
-    terminal::{Clear, ClearType},
-};
-use std::io::Write;
+use crate::lib::app::{load_app_manifest, validate_manifest_file, AppManifest};
+use crate::lib::cli::get::parse_watch_interval;
+use crate::lib::cli::{CliConnectionOpts, CommandOutput, OutputKind};
+use crate::lib::config::WashConnectionOptions;
 
 mod output;
 

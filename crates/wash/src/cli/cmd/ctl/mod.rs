@@ -1,11 +1,11 @@
 use clap::Subcommand;
 
-use crate::cmd::get::{GetClaimsCommand, GetHostInventoriesCommand, GetHostsCommand};
-use crate::cmd::link::LinkCommand;
-use crate::cmd::scale::ScaleCommand;
-use crate::cmd::start::StartCommand;
-use crate::cmd::stop::StopCommand;
-use crate::cmd::update::UpdateCommand;
+use crate::cli::cmd::get::{GetClaimsCommand, GetHostInventoriesCommand, GetHostsCommand};
+use crate::cli::cmd::link::LinkCommand;
+use crate::cli::cmd::scale::ScaleCommand;
+use crate::cli::cmd::start::StartCommand;
+use crate::cli::cmd::stop::StopCommand;
+use crate::cli::cmd::update::UpdateCommand;
 
 pub use output::*;
 

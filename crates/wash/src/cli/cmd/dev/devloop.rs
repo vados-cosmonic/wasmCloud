@@ -18,7 +18,7 @@ use crate::lib::parser::{
     TypeConfig,
 };
 
-use crate::app::deploy_model_from_manifest;
+use crate::cli::cmd::app::deploy_model_from_manifest;
 use crate::appearance::spinner::Spinner;
 
 use super::deps::{DependencySpec, ProjectDependencyKey, ProjectDeps};

@@ -1,13 +1,12 @@
 use std::str::FromStr;
 
-use crate::lib::{
-    common::{boxed_err_to_anyhow, get_all_inventories},
-    config::WashConnectionOptions,
-    id::ServerId,
-};
 use anyhow::{Context, Result};
 use clap::Parser;
 use wasmcloud_control_interface::{Host, HostInventory};
+
+use crate::lib::common::{boxed_err_to_anyhow, get_all_inventories};
+use crate::lib::config::WashConnectionOptions;
+use crate::lib::id::ServerId;
 
 use super::CliConnectionOpts;
 

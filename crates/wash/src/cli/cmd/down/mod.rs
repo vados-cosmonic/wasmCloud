@@ -8,6 +8,7 @@ use futures::future::join_all;
 use serde_json::json;
 use tokio::process::Command;
 use tracing::warn;
+
 use crate::lib::cli::{stop::stop_hosts, CommandOutput, OutputKind};
 use crate::lib::config::{
     create_nats_client_from_opts, downloads_dir, host_pid_file, DEFAULT_NATS_HOST,
@@ -109,7 +110,8 @@ pub async fn handle_down(cmd: DownCommand, output_kind: OutputKind) -> Result<Co
     let nats_client = create_nats_client_from_opts(
         &cmd.ctl_host
             .unwrap_or_else(|| DEFAULT_NATS_HOST.to_string()),
-        &cmd.ctl_port.map_or_else(|| DEFAULT_NATS_PORT.to_string(), |port| port.to_string()),
+        &cmd.ctl_port
+            .map_or_else(|| DEFAULT_NATS_PORT.to_string(), |port| port.to_string()),
         cmd.ctl_jwt,
         cmd.ctl_seed,
         cmd.ctl_credsfile,

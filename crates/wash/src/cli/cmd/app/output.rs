@@ -1,8 +1,6 @@
-use term_table::{
-    row::Row,
-    table_cell::{Alignment, TableCell},
-    Table,
-};
+use term_table::row::Row;
+use term_table::table_cell::{Alignment, TableCell};
+use term_table::Table;
 use wadm_types::api::{Status, VersionInfo};
 
 use super::ModelSummary;
