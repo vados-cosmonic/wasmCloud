@@ -8290,7 +8290,7 @@ dependencies = [
 
 [[package]]
 name = "wascap"
-version = "0.16.0"
+version = "0.16.1"
 dependencies = [
  "data-encoding",
  "humantime",
@@ -9256,7 +9256,7 @@ dependencies = [
 
 [[package]]
 name = "wasmcloud-secrets-types"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "async-trait",
