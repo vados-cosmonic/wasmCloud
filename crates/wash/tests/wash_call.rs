@@ -5,7 +5,7 @@ use serial_test::serial;
 
 use tokio::task::JoinSet;
 use wash::lib::{
-    cli::output::{CallCommandOutput, StartCommandOutput},
+    cli::output::{CallCommandOutput, PullCommandOutput, StartCommandOutput},
     context::WashContext,
 };
 
@@ -135,6 +135,24 @@ async fn integration_call_with_context_serial() -> Result<()> {
     Ok(())
 }
 
+/// Ensure that `wash call` works with wave
+#[tokio::test]
+#[serial]
+#[cfg_attr(not(can_reach_ghcr_io), ignore = "ghcr.io is not reachable")]
+async fn integration_call_with_wave_serial() -> Result<()> {
+    wait_for_no_hosts()
+        .await
+        .context("unexpected wasmcloud instance(s) running")?;
+
+    let instance = Arc::new(TestWashInstance::create().await?);
+    let pull_cmd_output = pull(instance.clone(), FERRIS_SAYS_OCI_REF).await?;
+    ensure!(pull_cmd_output.success);
+
+    // TODO: call the component using wave
+
+    Ok(())
+}
+
 /// Utility function for pulling and calling a component
 async fn pull_and_call(
     instance: Arc<TestWashInstance>,
@@ -145,10 +163,7 @@ async fn pull_and_call(
 ) -> Result<CallCommandOutput> {
     // Pre-emptively pull the OCI ref for the component to ensure we don't run into the
     // default testing timeout when attempting to start the component
-    let _ = instance
-        .pull(component_ref)
-        .await
-        .context("failed to pull component")?;
+    pull(instance.clone(), component_ref).await?;
 
     // Start the HTTP jsonify component which will use
     let output: StartCommandOutput = instance
@@ -164,4 +179,12 @@ async fn pull_and_call(
         .call_component(&component_id, operation, input)
         .await
         .context("failed to call component")
+}
+
+/// Helper for pulling
+async fn pull(instance: Arc<TestWashInstance>, component_ref: &str) -> Result<PullCommandOutput> {
+    instance
+        .pull(component_ref)
+        .await
+        .with_context(|| format!("failed to pull component [{component_ref}]"))
 }

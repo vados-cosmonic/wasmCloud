@@ -26,70 +26,6 @@ const DEFAULT_HTTP_HOST: &str = "localhost";
 /// Default port used by wasmCloud HTTP server provider
 const DEFAULT_HTTP_PORT: u16 = 8080;
 
-#[derive(Deserialize)]
-struct TestResult<'a> {
-    /// test case name
-    #[serde(default)]
-    pub name: String,
-    /// true if the test case passed
-    #[serde(default)]
-    pub passed: bool,
-    /// (optional) more detailed results, if available.
-    /// data is snap-compressed json
-    /// failed tests should have a firsts-level key called "error".
-    #[serde(rename = "snapData")]
-    #[serde(with = "serde_bytes")]
-    #[serde(default)]
-    pub snap_data: &'a [u8],
-}
-
-/// Prints test results (with handy color!) to the terminal
-// NOTE(thomastaylor312): We are unwrapping all writing IO errors (which matches the behavior in the
-// println! macro) and swallowing the color change errors as there isn't much we can do if they fail
-// (and a color change isn't the end of the world). We may want to update this function in the
-// future to return an io::Result
-fn print_test_results(results: &[TestResult]) {
-    // structure for deserializing error results
-    #[derive(Deserialize)]
-    struct ErrorReport {
-        error: String,
-    }
-
-    let mut passed = 0u32;
-    let total = results.len() as u32;
-    // TODO(thomastaylor312): We can probably improve this a bit by using the `atty` crate to choose
-    // whether or not to colorize the text
-    let mut stdout = StandardStream::stdout(ColorChoice::Always);
-    let mut green = ColorSpec::new();
-    green.set_fg(Some(Color::Green));
-    let mut red = ColorSpec::new();
-    red.set_fg(Some(Color::Red));
-    for test in results {
-        if test.passed {
-            let _ = stdout.set_color(&green);
-            write!(&mut stdout, "Pass").unwrap();
-            let _ = stdout.reset();
-            writeln!(&mut stdout, ": {}", test.name).unwrap();
-            passed += 1;
-        } else {
-            let error_msg = serde_json::from_slice::<ErrorReport>(test.snap_data)
-                .map(|r| r.error)
-                .unwrap_or_default();
-            let _ = stdout.set_color(&red);
-            write!(&mut stdout, "Fail").unwrap();
-            let _ = stdout.reset();
-            writeln!(&mut stdout, ": {error_msg}").unwrap();
-        }
-    }
-    let status_color = if passed == total { green } else { red };
-    write!(&mut stdout, "Test results: ").unwrap();
-    let _ = stdout.set_color(&status_color);
-    writeln!(&mut stdout, "{passed}/{total} Passed").unwrap();
-    // Reset the color settings back to what the user configured
-    let _ = stdout.set_color(&ColorSpec::new());
-    writeln!(&mut stdout).unwrap();
-}
-
 #[derive(Debug, Args, Clone)]
 #[clap(name = "call")]
 pub struct CallCli {
@@ -268,6 +204,10 @@ pub struct CallCommand {
     /// Customizable options related to the HTTP handler invocation (HTTP path, method, etc)
     #[clap(flatten)]
     pub http_handler_invocation_opts: HttpHandlerInvocationOpts,
+
+    /// Arguments that should be passed through to the invocation
+    #[arg(trailing_var_arg = true)]
+    args: Vec<String>,
 }
 
 /// Options that customize the HTTP request that is fed to a HTTP handler when using `wash call`
@@ -694,4 +634,68 @@ mod test {
         // TODO: add a context
         Ok(())
     }
+}
+
+#[derive(Deserialize)]
+struct TestResult<'a> {
+    /// test case name
+    #[serde(default)]
+    pub name: String,
+    /// true if the test case passed
+    #[serde(default)]
+    pub passed: bool,
+    /// (optional) more detailed results, if available.
+    /// data is snap-compressed json
+    /// failed tests should have a firsts-level key called "error".
+    #[serde(rename = "snapData")]
+    #[serde(with = "serde_bytes")]
+    #[serde(default)]
+    pub snap_data: &'a [u8],
+}
+
+/// Prints test results (with handy color!) to the terminal
+// NOTE(thomastaylor312): We are unwrapping all writing IO errors (which matches the behavior in the
+// println! macro) and swallowing the color change errors as there isn't much we can do if they fail
+// (and a color change isn't the end of the world). We may want to update this function in the
+// future to return an io::Result
+fn print_test_results(results: &[TestResult]) {
+    // structure for deserializing error results
+    #[derive(Deserialize)]
+    struct ErrorReport {
+        error: String,
+    }
+
+    let mut passed = 0u32;
+    let total = results.len() as u32;
+    // TODO(thomastaylor312): We can probably improve this a bit by using the `atty` crate to choose
+    // whether or not to colorize the text
+    let mut stdout = StandardStream::stdout(ColorChoice::Always);
+    let mut green = ColorSpec::new();
+    green.set_fg(Some(Color::Green));
+    let mut red = ColorSpec::new();
+    red.set_fg(Some(Color::Red));
+    for test in results {
+        if test.passed {
+            let _ = stdout.set_color(&green);
+            write!(&mut stdout, "Pass").unwrap();
+            let _ = stdout.reset();
+            writeln!(&mut stdout, ": {}", test.name).unwrap();
+            passed += 1;
+        } else {
+            let error_msg = serde_json::from_slice::<ErrorReport>(test.snap_data)
+                .map(|r| r.error)
+                .unwrap_or_default();
+            let _ = stdout.set_color(&red);
+            write!(&mut stdout, "Fail").unwrap();
+            let _ = stdout.reset();
+            writeln!(&mut stdout, ": {error_msg}").unwrap();
+        }
+    }
+    let status_color = if passed == total { green } else { red };
+    write!(&mut stdout, "Test results: ").unwrap();
+    let _ = stdout.set_color(&status_color);
+    writeln!(&mut stdout, "{passed}/{total} Passed").unwrap();
+    // Reset the color settings back to what the user configured
+    let _ = stdout.set_color(&ColorSpec::new());
+    writeln!(&mut stdout).unwrap();
 }
