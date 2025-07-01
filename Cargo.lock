@@ -5358,7 +5358,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "22505a5c94da8e3b7c2996394d1c933236c4d743e81a410bcca4e6989fc066a4"
 dependencies = [
  "bytes",
- "heck 0.4.1",
+ "heck 0.5.0",
  "itertools 0.12.1",
  "log",
  "multimap",
@@ -5378,7 +5378,7 @@ version = "0.13.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "be769465445e8c1474e9c5dac2018218498557af32d9ed057325ec9a41ae81bf"
 dependencies = [
- "heck 0.4.1",
+ "heck 0.5.0",
  "itertools 0.14.0",
  "log",
  "multimap",
@@ -6888,7 +6888,7 @@ version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "03c3c6b7927ffe7ecaa769ee0e3994da3b8cafc8f444578982c83ecb161af917"
 dependencies = [
- "heck 0.4.1",
+ "heck 0.5.0",
  "proc-macro2",
  "quote",
  "syn 2.0.101",
@@ -8523,6 +8523,7 @@ dependencies = [
  "wasm-encoder 0.232.0",
  "wasm-pkg-client",
  "wasm-pkg-core",
+ "wasm-wave",
  "wasmcloud-control-interface",
  "wasmcloud-core",
  "wasmcloud-secrets-types",
@@ -8894,6 +8895,17 @@ dependencies = [
  "tokio-util",
  "tracing",
  "utf8-tokio",
+]
+
+[[package]]
+name = "wasm-wave"
+version = "0.228.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "da0372abe423e894392241cefbd65739714051448086dbcc50e4e32f879c4970"
+dependencies = [
+ "indexmap 2.9.0",
+ "logos",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -10019,7 +10031,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf221c93e13a30d793f7645a0e7762c55d169dbb0a49671918a2319d289b10bb"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

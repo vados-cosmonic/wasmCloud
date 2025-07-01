@@ -5,15 +5,18 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use anyhow::{bail, ensure, Context, Result};
-use bytes::BytesMut;
+use bytes::{Bytes, BytesMut};
 use clap::Args;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
+use tokio::io::AsyncWriteExt;
+use tokio_util::codec::{Encoder, FramedRead};
 use tracing::debug;
 
 use wasmcloud_core::parse_wit_meta_from_operation;
+use wit_bindgen_wrpc::wasm_tokio::cm::TupleEncoder;
 use wit_bindgen_wrpc::wrpc_transport::InvokeExt as _;
+use wrpc_transport::{Deferred, Encode, Invoke, ListDecoder, ListEncoder, TupleEncode, UnitCodec};
 
 use crate::lib::cli::{validate_component_id, CommandOutput};
 use crate::lib::config::DEFAULT_LATTICE;
@@ -47,6 +50,7 @@ pub async fn handle_command(
         opts,
         http_handler_invocation_opts,
         http_response_extract_json,
+        args,
         ..
     }: CallCommand,
 ) -> Result<CommandOutput> {
@@ -110,6 +114,7 @@ pub async fn handle_command(
                 &instance,
                 &name,
                 opts.timeout_ms,
+                args,
             )
             .await
         }
@@ -380,6 +385,9 @@ async fn wrpc_invoke_http_handler(
 }
 
 /// Invoke a wRPC endpoint that takes nothing and returns a string
+///
+/// If args are provided, then `wasm_wave` is used to parse the arguments and build
+/// a response to send.
 async fn wrpc_invoke_simple(
     client: wrpc_transport_nats::Client,
     lattice: &str,
@@ -387,22 +395,71 @@ async fn wrpc_invoke_simple(
     instance: &str,
     function_name: &str,
     timeout_ms: u64,
+    args: Vec<String>,
 ) -> Result<CommandOutput> {
+    // Build invocation parameters
+    let mut params = BytesMut::default();
+    let param_values = vec![];
+    let encoder = ListEncoder::default();
+    if args.is_empty() {
+        encoder
+            .encode(vec![()], &mut params)
+            .context("failed to encode")?;
+    } else {
+        // TODO: encode all args as params
+        for arg in args {
+            let val = wasm_wave::value::Value::from(arg);
+            //val.encode_bytes(&mut params);
+        }
+    }
+
+
+    // Start invocation
     let result = client
            .timeout(Duration::from_millis(timeout_ms))
-           .invoke_values_blocking::<_, ((),), (String,)>(
+           .invoke(
                Some(gen_wash_call_headers()),
                instance,
                function_name,
-               ((),),
+               params.freeze(),
                &[[]; 0],
            )
    .await
    .with_context(|| format!("timed out invoking component, is component [{component_id}] running in lattice [{lattice}]?"));
 
     match result {
-       Ok((result,)) => {
-               Ok(CommandOutput::new(result.clone(), HashMap::from([("result".to_string(), json!(result))])))
+       Ok((mut param_writer, reader)) => {
+           // Wait fo params to be written
+            param_writer
+                .shutdown()
+                .await
+                .context("failed to shutdown synchronous parameter channel")?;
+           eprintln!("params written!");
+
+           // NOTE: we need some sort of AnyDecoder, for this to work
+
+           // Decode
+           let mut dec = FramedRead::new(reader, ListDecoder::new());
+
+
+           // // Use the encoder to transfer bytes
+           // let mut tx = tokio::spawn(async {
+           // });
+
+
+            // let mut tx = enc.take_deferred().map(|tx| {
+            //     tokio::spawn(
+            //         async {
+            //             debug!("transmitting async parameters");
+            //             tx(outgoing, Vec::default())
+            //                 .await
+            //                 .context("failed to write async parameters")
+            //         }
+            //         .in_current_span(),
+            //     )
+            // });
+
+           bail!("not implemented");
        }
        Err(e) if e.to_string().contains("transmission failed") => bail!("No component responded to your request, ensure component {component_id} is running in lattice {lattice}"),
        Err(e) => bail!("Error invoking component: {e}"),
@@ -698,4 +755,16 @@ fn print_test_results(results: &[TestResult]) {
     // Reset the color settings back to what the user configured
     let _ = stdout.set_color(&ColorSpec::new());
     writeln!(&mut stdout).unwrap();
+}
+
+/// Convert values that can be encoded as wRPC values
+trait EncodeWrpc {
+    /// Encode a given value as wRPC
+    async fn encode_wrpc(buf: &mut Bytes) -> Result<()>;
+}
+
+impl EncodeWrpc for wasm_wave::value::Value {
+    async fn encode_wrpc(buf: &mut Bytes) -> Result<()> {
+        bail!("not implemented");
+    }
 }
