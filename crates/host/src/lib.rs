@@ -48,7 +48,7 @@ use wascap::jwt;
 #[derive(PartialEq)]
 pub enum ResourceRef<'a> {
     /// A file reference
-    File(String, PathBuf),
+    File(PathBuf),
     /// An OCI reference
     Oci(&'a str),
     /// A builtin provider reference
@@ -60,7 +60,7 @@ impl AsRef<str> for ResourceRef<'_> {
         match self {
             // Resource ref must have originated from a URL, which can only be constructed from a
             // valid string
-            ResourceRef::File(url, _) => url,
+            ResourceRef::File(path) => path.to_str().expect("invalid file reference URL"),
             ResourceRef::Oci(s) => s,
             ResourceRef::Builtin(s) => s,
         }
@@ -76,7 +76,7 @@ impl<'a> TryFrom<&'a str> for ResourceRef<'a> {
                 match url.scheme() {
                     "file" => url
                         .to_file_path()
-                        .map(|path| Self::File(s.to_string(), path))
+                        .map(|path| Self::File(path))
                         .map_err(|()| anyhow!("failed to convert `{url}` to a file path")),
                     "oci" => {
                         // Note: oci is not a scheme, but using this as a prefix takes out the guesswork
@@ -117,7 +117,7 @@ impl<'a> TryFrom<&'a str> for ResourceRef<'a> {
 impl ResourceRef<'_> {
     fn authority(&self) -> Option<&str> {
         match self {
-            ResourceRef::File(_, _) => None,
+            ResourceRef::File(_) => None,
             ResourceRef::Oci(s) => {
                 let (l, _) = s.split_once('/')?;
                 Some(l)
@@ -136,7 +136,7 @@ pub async fn fetch_component(
     registry_config: &HashMap<String, RegistryConfig>,
 ) -> anyhow::Result<Vec<u8>> {
     match ResourceRef::try_from(component_ref)? {
-        ResourceRef::File(_, component_ref) => {
+        ResourceRef::File(component_ref) => {
             ensure!(
                 allow_file_load,
                 "unable to start component from file, file loading is disabled"
@@ -170,7 +170,7 @@ pub(crate) async fn fetch_provider(
     registry_config: &HashMap<String, RegistryConfig>,
 ) -> anyhow::Result<(PathBuf, Option<jwt::Token<jwt::CapabilityProvider>>)> {
     match provider_ref {
-        ResourceRef::File(_, provider_path) => {
+        ResourceRef::File(provider_path) => {
             ensure!(
                 allow_file_load,
                 "unable to start provider from file, file loading is disabled"
@@ -205,7 +205,7 @@ fn parse_references() -> anyhow::Result<()> {
     let file_url = "file:///tmp/foo_s.wasm";
     ensure!(
         ResourceRef::try_from(file_url).expect("failed to parse")
-            == ResourceRef::File("file:///tmp/foo_s.wasm".into(), "/tmp/foo_s.wasm".into()),
+            == ResourceRef::File("/tmp/foo_s.wasm".into()),
         "file reference should be parsed as file and converted to path"
     );
 
