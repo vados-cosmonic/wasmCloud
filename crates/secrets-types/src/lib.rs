@@ -56,15 +56,28 @@ pub struct Application {
 impl Context {
     /// Validates that the underlying claims embedded in the Context's JWTs are valid.
     pub fn valid_claims(&self) -> Result<(), ContextValidationError> {
-        if let (Err(e), Err(_)) = (
-            Self::valid_component(&self.entity_jwt),
-            Self::valid_provider(&self.entity_jwt),
-        ) {
-            return Err(ContextValidationError::InvalidComponentJWT(e.to_string()));
+        let component_valid = Self::valid_component(&self.entity_jwt);
+        let provider_valid = Self::valid_provider(&self.entity_jwt);
+        // TODO: There's almost certainly a bug here, it was ported from original conditional commented-out below:
+        //if component_valid.is_err() && provider_valid.is_err() {
+        //    if let Err(e) = component_valid {
+        //        return Err(ContextValidationError::InvalidComponentJWT(e.to_string()));
+        //    } else {
+        //        return Err(ContextValidationError::InvalidProviderJWT(
+        //            provider_valid.unwrap_err().to_string(),
+        //        ));
+        //    }
+        //}
+        if provider_valid.is_err() {
+            if let Err(e) = component_valid {
+                return Err(ContextValidationError::InvalidComponentJWT(e.to_string()));
+            }
         }
 
-        if let Err(e) = Self::valid_host(&self.host_jwt) {
-            return Err(ContextValidationError::InvalidHostJWT(e.to_string()));
+        if Self::valid_host(&self.host_jwt).is_err() {
+            return Err(ContextValidationError::InvalidHostJWT(
+                Self::valid_host(&self.host_jwt).unwrap_err().to_string(),
+            ));
         }
         Ok(())
     }
