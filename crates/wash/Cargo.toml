@@ -1,6 +1,6 @@
 [package]
 name = "wash"
-version = "0.41.0"
+version = "0.44.0"
 categories = ["wasm", "command-line-utilities"]
 description = "wasmCloud Shell (wash) - CLI tool and library for wasmCloud development"
 keywords = ["webassembly", "wasmcloud", "wash", "cli"]
@@ -36,6 +36,7 @@ plugin = ["wasmtime", "wasmtime-wasi", "wasmtime-wasi-http"]
 anstyle = { workspace = true }
 anyhow = { workspace = true, features = ["backtrace"] }
 async-compression = { workspace = true, features = ["tokio", "gzip"] }
+async_zip = { workspace = true, features = ["tokio", "deflate"] }
 async-nats = { workspace = true, optional = true }
 bytes = { workspace = true, features = ["serde"] }
 cargo_metadata = { workspace = true }
@@ -99,8 +100,8 @@ thiserror = { workspace = true }
 time = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 tokio-stream = { workspace = true }
-tokio-tar = { workspace = true }
-tokio-util = { workspace = true }
+astral-tokio-tar = { workspace = true }
+tokio-util = { workspace = true, features = ["compat"] }
 toml = { workspace = true, features = ["parse"] }
 tracing = { workspace = true, features = ["log"] }
 tracing-subscriber = { workspace = true, features = [
@@ -137,7 +138,7 @@ wasmtime = { workspace = true, optional = true, features = [
     "gc-null",
 ] }
 wasmtime-wasi = { workspace = true, optional = true }
-wasmtime-wasi-http = { workspace = true, optional = true }
+wasmtime-wasi-http = { workspace = true, features = ["default-send-request"], optional = true }
 which = { workspace = true }
 wit-bindgen-wrpc = { workspace = true }
 wit-component = { workspace = true }

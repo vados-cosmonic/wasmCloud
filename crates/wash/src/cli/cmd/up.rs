@@ -2,7 +2,8 @@ use crate::lib::app::{load_app_manifest, AppManifest, AppManifestSource};
 use crate::lib::cli::{CommandOutput, OutputKind};
 use crate::lib::common::{CommandGroupUsage, WASMCLOUD_HOST_VERSION_T};
 use crate::lib::config::{
-    create_nats_client_from_opts, downloads_dir, host_pid_file, DEFAULT_NATS_TIMEOUT_MS,
+    create_nats_client_from_opts, host_pid_file, DEFAULT_NATS_TIMEOUT_MS, WADM_PID_FILE,
+    WASH_DIRECTORIES,
 };
 use crate::lib::context::fs::ContextDir;
 use crate::lib::context::ContextManager;
@@ -12,7 +13,7 @@ use crate::lib::start::{
     new_patch_or_pre_1_0_0_minor_version_after_version_string, parse_version_string,
     start_nats_server, start_wadm, start_wasmcloud_host, NatsConfig, WadmConfig,
     GITHUB_WASMCLOUD_ORG, GITHUB_WASMCLOUD_WADM_REPO, GITHUB_WASMCLOUD_WASMCLOUD_REPO,
-    NATS_SERVER_BINARY, NATS_SERVER_CONF, WADM_PID,
+    NATS_SERVER_BINARY, NATS_SERVER_CONF,
 };
 use anyhow::{anyhow, bail, Context, Result};
 use async_nats::Client;
@@ -27,7 +28,6 @@ use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use sysinfo::System;
-use tokio::fs::create_dir_all;
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
     process::Child,
@@ -103,7 +103,7 @@ pub struct NatsOpts {
     )]
     pub connect_only: bool,
 
-    /// NATS server version to download, e.g. `v2.10.26`. See <https://github.com/nats-io/nats-server/releases>/ for releases
+    /// NATS server version to download, e.g. `v2.11.3`. See <https://github.com/nats-io/nats-server/releases>/ for releases
     #[clap(long = "nats-version", default_value = NATS_SERVER_VERSION, env = "NATS_VERSION")]
     pub nats_version: String,
 
@@ -399,8 +399,7 @@ pub async fn handle_command(command: UpCommand, output_kind: OutputKind) -> Resu
 }
 
 pub async fn handle_up(cmd: UpCommand, output_kind: OutputKind) -> Result<CommandOutput> {
-    let install_dir = downloads_dir()?;
-    create_dir_all(&install_dir).await?;
+    let install_dir = WASH_DIRECTORIES.create_downloads_dir()?;
     let spinner = Spinner::new(&output_kind)?;
 
     let ctx = ContextDir::new()?
@@ -1170,7 +1169,7 @@ pub(crate) async fn remove_wadm_pidfile<P>(install_dir: P) -> Result<()>
 where
     P: AsRef<Path>,
 {
-    if let Err(err) = tokio::fs::remove_file(install_dir.as_ref().join(WADM_PID)).await {
+    if let Err(err) = tokio::fs::remove_file(install_dir.as_ref().join(WADM_PID_FILE)).await {
         if err.kind() != ErrorKind::NotFound {
             bail!(err);
         }
@@ -1250,7 +1249,7 @@ mod tests {
             "--nats-remote-url",
             "tls://remote.global",
             "--nats-version",
-            "v2.10.26",
+            "v2.11.3",
             "--provider-delay",
             "500",
             "--rpc-credsfile",
@@ -1344,7 +1343,7 @@ mod tests {
             up_all_flags.wasmcloud_opts.wasmcloud_js_domain,
             Some("domain".to_string())
         );
-        assert_eq!(up_all_flags.nats_opts.nats_version, "v2.10.26".to_string());
+        assert_eq!(up_all_flags.nats_opts.nats_version, "v2.11.3".to_string());
         assert_eq!(
             up_all_flags.nats_opts.nats_remote_url,
             Some("tls://remote.global".to_string())

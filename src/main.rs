@@ -206,7 +206,7 @@ struct Args {
     max_execution_time: Duration,
     /// The maximum amount of memory bytes that a component can allocate (default 256 MiB)
     #[clap(long = "max-linear-memory-bytes", default_value_t = 256 * 1024 * 1024, env = "WASMCLOUD_MAX_LINEAR_MEMORY")]
-    max_linear_memory: u64,
+    max_linear_memory: u32,
     /// The maximum byte size of a component binary that can be loaded (default 50 MiB)
     #[clap(long = "max-component-size-bytes", default_value_t = 50 * 1024 * 1024, env = "WASMCLOUD_MAX_COMPONENT_SIZE")]
     max_component_size: u64,
@@ -289,6 +289,10 @@ struct Args {
     enable_logs: Option<bool>,
 
     /// Overrides the OpenTelemetry endpoint used for emitting traces, metrics and logs.
+    ///
+    /// If not provided, defaults to:
+    ///   - HTTP: http://127.0.0.1:4318/v1/<signal> (e.g., /v1/traces, /v1/metrics, /v1/logs)
+    ///   - gRPC: http://127.0.0.1:4317
     #[clap(
         long = "override-observability-endpoint",
         env = "OTEL_EXPORTER_OTLP_ENDPOINT"
@@ -296,6 +300,10 @@ struct Args {
     observability_endpoint: Option<String>,
 
     /// Overrides the OpenTelemetry endpoint used for emitting traces.
+    ///
+    /// If not provided, defaults to:
+    ///   - HTTP: http://127.0.0.1:4318/v1/traces
+    ///   - gRPC: http://127.0.0.1:4317
     #[clap(
         long = "override-traces-endpoint",
         env = "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
@@ -304,6 +312,10 @@ struct Args {
     traces_endpoint: Option<String>,
 
     /// Overrides the OpenTelemetry endpoint used for emitting metrics.
+    ///
+    /// If not provided, defaults to:
+    ///   - HTTP: http://127.0.0.1:4318/v1/metrics
+    ///   - gRPC: http://127.0.0.1:4317
     #[clap(
         long = "override-metrics-endpoint",
         env = "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT",
@@ -312,6 +324,10 @@ struct Args {
     metrics_endpoint: Option<String>,
 
     /// Overrides the OpenTelemetry endpoint used for emitting logs.
+    ///
+    /// If not provided, defaults to:
+    ///   - HTTP: http://127.0.0.1:4318/v1/logs
+    ///   - gRPC: http://127.0.0.1:4317
     #[clap(
         long = "override-logs-endpoint",
         env = "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT",
@@ -425,6 +441,17 @@ async fn main() -> anyhow::Result<()> {
             dispatch
                 .try_init()
                 .context("failed to init observability for host")?;
+
+            // Now that tracing is initialized, log the effective OTEL configuration
+            tracing::debug!(
+                ?otel_config,
+                traces_endpoint = %otel_config.traces_endpoint(),
+                metrics_endpoint = %otel_config.metrics_endpoint(),
+                logs_endpoint = %otel_config.logs_endpoint(),
+                protocol = ?otel_config.protocol,
+                "combined OpenTelemetry configuration (cli > env > defaults)"
+            );
+
             Some(guard)
         }
         Err(e) => {

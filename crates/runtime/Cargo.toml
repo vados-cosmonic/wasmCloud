@@ -1,6 +1,6 @@
 [package]
 name = "wasmcloud-runtime"
-version = "0.10.0"
+version = "0.12.0"
 description = "wasmCloud runtime library"
 readme = "README.md"
 
@@ -23,6 +23,7 @@ bytes = { workspace = true }
 futures = { workspace = true, features = ["async-await", "std"] }
 http = { workspace = true }
 secrecy = { workspace = true }
+serde ={ workspace = true }
 semver = { workspace = true }
 tokio = { workspace = true, features = ["io-util", "rt-multi-thread", "sync"] }
 tokio-stream = { workspace = true }

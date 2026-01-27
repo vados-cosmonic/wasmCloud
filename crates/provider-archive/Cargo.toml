@@ -1,6 +1,6 @@
 [package]
 name = "provider-archive"
-version = "0.16.0"
+version = "0.16.1"
 description = "Library for reading and writing wasmCloud capability provider archive files"
 documentation = "https://docs.rs/provider-archive"
 readme = "README.md"
@@ -19,7 +19,7 @@ ring = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["io-util"] }
 tokio-stream = { workspace = true }
-tokio-tar = { workspace = true }
+astral-tokio-tar = { workspace = true }
 wascap = { workspace = true }
 
 [dev-dependencies]

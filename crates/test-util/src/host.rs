@@ -95,6 +95,7 @@ impl WasmCloudTestHost {
         let host_key = Arc::new(host_key.unwrap_or(KeyPair::new_server()));
         let experimental_features = experimental_features.unwrap_or_else(|| {
             Features::new()
+                .enable_builtin_http_client()
                 .enable_builtin_http_server()
                 .enable_builtin_messaging_nats()
                 .enable_wasmcloud_messaging_v3()
