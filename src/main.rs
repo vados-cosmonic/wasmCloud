@@ -564,7 +564,7 @@ async fn main() -> anyhow::Result<()> {
         secrets_topic_prefix: args.secrets_topic_prefix,
         version: env!("CARGO_PKG_VERSION").to_string(),
         max_execution_time: args.max_execution_time,
-        max_linear_memory: usize::from(args.max_linear_memory),
+        max_linear_memory: args.max_linear_memory,
         max_component_size: args.max_component_size,
         max_components: args.max_components,
         max_core_instances_per_component: args.max_core_instances_per_component,
