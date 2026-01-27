@@ -541,23 +541,27 @@ async fn separate_project_paths() {
     assert_eq!(config.common.wit_dir, PathBuf::from("/tmp/nested/wit"));
 
     // Relative paths properly handled
+    let expected_build_artifact = PathBuf::from("build/testcomponent_raw.wasm");
+    let expected_destination = PathBuf::from("./build/testcomponent.wasm");
     assert!(matches!(
         config.project_type,
         TypeConfig::Component(ComponentConfig {
             build_artifact: Some(build_artifact),
             destination: Some(destination),
             ..
-        }) if build_artifact == PathBuf::from("build/testcomponent_raw.wasm")
-        && destination == PathBuf::from("./build/testcomponent.wasm")
+        }) if build_artifact == expected_build_artifact
+        && destination == expected_destination
     ));
 
+    let expected_cargo_path = PathBuf::from("../cargo");
+    let expected_target_path = PathBuf::from("./target");
     assert!(matches!(
         config.language,
         LanguageConfig::Rust(RustConfig {
             cargo_path: Some(cargo_path),
             target_path: Some(target_path),
             debug: false,
-        }) if cargo_path == PathBuf::from("../cargo")
-        && target_path == PathBuf::from("./target")
+        }) if cargo_path == expected_cargo_path
+        && target_path == expected_target_path
     ));
 }

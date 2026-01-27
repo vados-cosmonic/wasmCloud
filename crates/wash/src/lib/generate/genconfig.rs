@@ -26,6 +26,7 @@ pub struct Config {
     pub(crate) placeholders: Vec<TomlMap>,
 }
 
+#[allow(unused)]
 #[derive(Deserialize, Debug, PartialEq)]
 pub struct ConfigValues {
     pub(crate) values: TomlMap,
@@ -69,6 +70,7 @@ pub struct RenameConfig {
     pub(crate) to: String,
 }
 
+#[allow(unused)]
 #[derive(Deserialize, Debug, PartialEq)]
 pub struct TemplateSlotsTable(pub(crate) TomlMap);
 
