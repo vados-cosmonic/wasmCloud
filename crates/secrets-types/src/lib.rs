@@ -56,13 +56,12 @@ pub struct Application {
 impl Context {
     /// Validates that the underlying claims embedded in the Context's JWTs are valid.
     pub fn valid_claims(&self) -> Result<(), ContextValidationError> {
-        if let Err(e) = Self::valid_component(&self.entity_jwt) {
+        if let (Err(e), Err(_)) = (
+            Self::valid_component(&self.entity_jwt),
+            Self::valid_provider(&self.entity_jwt),
+        ) {
             return Err(ContextValidationError::InvalidComponentJWT(e.to_string()));
-        };
-
-        if let Err(e) = Self::valid_provider(&self.entity_jwt) {
-            return Err(ContextValidationError::InvalidProviderJWT(e.to_string()));
-        };
+        }
 
         if let Err(e) = Self::valid_host(&self.host_jwt) {
             return Err(ContextValidationError::InvalidHostJWT(e.to_string()));
