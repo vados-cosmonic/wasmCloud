@@ -99,7 +99,7 @@ thiserror = { workspace = true }
 time = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 tokio-stream = { workspace = true }
-tokio-tar = { workspace = true }
+astral-tokio-tar = { workspace = true }
 tokio-util = { workspace = true }
 toml = { workspace = true, features = ["parse"] }
 tracing = { workspace = true, features = ["log"] }

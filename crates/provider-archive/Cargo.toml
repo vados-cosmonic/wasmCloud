@@ -19,7 +19,7 @@ ring = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["io-util"] }
 tokio-stream = { workspace = true }
-tokio-tar = { workspace = true }
+astral-tokio-tar = { workspace = true }
 wascap = { workspace = true }
 
 [dev-dependencies]
