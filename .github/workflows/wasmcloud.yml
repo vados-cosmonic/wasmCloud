@@ -411,23 +411,24 @@ jobs:
       - run: ./bin/wash --version
       - run: codesign --verify ./bin/wash
 
-  test-wash-macos-x86_64:
-    runs-on: macos-13
-    needs:
-      - build-wash-bin
-      - build-wash-lipo
-    strategy:
-      matrix:
-        artifact:
-          - wash-x86_64-apple-darwin
-          - wash-universal-darwin
-    steps:
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
-        with:
-          name: ${{ matrix.artifact }}
-      - run: chmod +x ./bin/wash
-      - run: ./bin/wash --version
-      - run: codesign --verify ./bin/wash
+  # TODO(fix): x86 macos has been retired by GH actions
+  # test-wash-macos-x86_64:
+  #   runs-on: macos-13
+  #   needs:
+  #     - build-wash-bin
+  #     - build-wash-lipo
+  #   strategy:
+  #     matrix:
+  #       artifact:
+  #         - wash-x86_64-apple-darwin
+  #         - wash-universal-darwin
+  #   steps:
+  #     - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+  #       with:
+  #         name: ${{ matrix.artifact }}
+  #     - run: chmod +x ./bin/wash
+  #     - run: ./bin/wash --version
+  #     - run: codesign --verify ./bin/wash
 
   test-wash-windows-x86_64:
     runs-on: windows-latest
@@ -476,23 +477,24 @@ jobs:
       - run: ./bin/wasmcloud --version
       - run: codesign --verify ./bin/wasmcloud
 
-  test-wasmcloud-macos-x86_64:
-    runs-on: macos-13
-    needs:
-      - build-wasmcloud-bin
-      - build-wasmcloud-lipo
-    strategy:
-      matrix:
-        artifact:
-          - wasmcloud-x86_64-apple-darwin
-          - wasmcloud-universal-darwin
-    steps:
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
-        with:
-          name: ${{ matrix.artifact }}
-      - run: chmod +x ./bin/wasmcloud
-      - run: ./bin/wasmcloud --version
-      - run: codesign --verify ./bin/wasmcloud
+  # TODO(fix): macos-13 has been retired (no x86 macs on GH actions)
+  # test-wasmcloud-macos-x86_64:
+  #   runs-on: macos-13
+  #   needs:
+  #     - build-wasmcloud-bin
+  #     - build-wasmcloud-lipo
+  #   strategy:
+  #     matrix:
+  #       artifact:
+  #         - wasmcloud-x86_64-apple-darwin
+  #         - wasmcloud-universal-darwin
+  #   steps:
+  #     - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+  #       with:
+  #         name: ${{ matrix.artifact }}
+  #     - run: chmod +x ./bin/wasmcloud
+  #     - run: ./bin/wasmcloud --version
+  #     - run: codesign --verify ./bin/wasmcloud
 
   test-wasmcloud-windows-x86_64:
     runs-on: windows-latest
