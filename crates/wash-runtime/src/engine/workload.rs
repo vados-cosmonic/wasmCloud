@@ -185,6 +185,9 @@ pub struct WorkloadMetadata {
     pub(crate) compiled: Option<Arc<super::LiveCompile>>,
     /// The component linked against `linker`, kept once a caller asked for it.
     pre: std::sync::OnceLock<InstancePre<SharedCtx>>,
+    /// Set by [`Self::seal_linker`] once `pre` is final: the linker it was
+    /// linked against has been let go, and a later write reaches nothing.
+    sealed: bool,
 }
 
 /// Kubernetes annotation set by the runtime-operator for the parent WorkloadDeployment.
@@ -270,9 +273,61 @@ impl WorkloadMetadata {
     /// Forgets the linked component [`WorkloadComponent::pre_instantiate_ref`]
     /// keeps, since a caller holding the linker mutably may change what it
     /// links.
+    ///
+    /// Once the workload is resolved the linker is sealed (see
+    /// [`Self::seal_linker`]): what is returned then is an empty linker that
+    /// no instance will ever be linked against, and the write is reported as
+    /// an error. Nothing in the runtime writes a linker after binding; a
+    /// plugin that does so has a bug, and this keeps it from unlinking the
+    /// component rather than from running.
     pub fn linker(&mut self) -> &mut Linker<SharedCtx> {
-        self.pre = std::sync::OnceLock::new();
+        if self.sealed {
+            tracing::error!(
+                workload_id = %self.workload_id,
+                component_id = %self.id,
+                "linker taken for writing after the workload was resolved; the write reaches \
+                 no instance. Plugins bind in on_workload_item_bind, before resolution"
+            );
+        } else {
+            self.pre = std::sync::OnceLock::new();
+        }
         Arc::make_mut(&mut self.linker)
+    }
+
+    /// Keep the linked component and let the linker go.
+    ///
+    /// A component something wrote to holds a copy of the engine's base
+    /// linker, every WASI and `wasi:http` definition included — about 140 KiB,
+    /// against the ~10 KiB the rest of an idle workload costs — of which the
+    /// [`InstancePre`] keeps only what this component imports. Once binding
+    /// and linking are over nothing reads the linker but `instantiate_pre`,
+    /// so the `pre` is built here and the linker replaced with an empty one.
+    ///
+    /// A component that does not link yet (an import nothing satisfied) keeps
+    /// its linker and is not sealed: it would have failed at its first use
+    /// before, and it still does, with the same error. Returns whether the
+    /// component is sealed.
+    pub(crate) fn seal_linker(&mut self) -> bool {
+        if self.sealed {
+            return true;
+        }
+        let pre = match self.linker.instantiate_pre(&self.component) {
+            Ok(pre) => pre,
+            Err(error) => {
+                tracing::debug!(
+                    workload_id = %self.workload_id,
+                    component_id = %self.id,
+                    %error,
+                    "component does not link; keeping its linker"
+                );
+                return false;
+            }
+        };
+        // A `pre` kept earlier was linked against this same linker.
+        let _ = self.pre.set(pre);
+        self.linker = Arc::new(Linker::new(self.component.engine()));
+        self.sealed = true;
+        true
     }
 
     /// Reopen a host-linked WASI interface for a declared plugin override.
@@ -502,6 +557,7 @@ impl WorkloadService {
                 plugin_bound_instances: Default::default(),
                 compiled: None,
                 pre: std::sync::OnceLock::new(),
+                sealed: false,
             },
             handle: None,
             max_restarts,
@@ -623,6 +679,7 @@ impl WorkloadComponent {
                 plugin_bound_instances: Default::default(),
                 compiled: None,
                 pre: std::sync::OnceLock::new(),
+                sealed: false,
             },
             name: component_name.into(),
             instances: Arc::new(InstancePool::new(instances)),
@@ -645,9 +702,11 @@ impl WorkloadComponent {
     }
 
     /// Pre-instantiate the component to prepare for instantiation.
+    ///
+    /// The same as [`Self::pre_instantiate_ref`]: a sealed component has no
+    /// linker to link against again, only the `pre` it kept.
     pub fn pre_instantiate(&mut self) -> wasmtime::Result<InstancePre<SharedCtx>> {
-        let component = self.metadata.component.clone();
-        self.metadata.linker.instantiate_pre(&component)
+        self.pre_instantiate_ref()
     }
 
     /// Like [`Self::pre_instantiate`] but without requiring `&mut self`:
@@ -2348,6 +2407,18 @@ impl ResolvedWorkload {
         })
     }
 
+    /// Seal every component's linker (see [`WorkloadMetadata::seal_linker`]).
+    async fn seal_linkers(&self) {
+        let mut components = self.components.write().await;
+        let mut sealed = 0usize;
+        for component in components.values_mut() {
+            if component.metadata.seal_linker() {
+                sealed += 1;
+            }
+        }
+        trace!(sealed, total = components.len(), "sealed component linkers");
+    }
+
     /// Pre-link `component_id` against its linker, ready to instantiate into a
     /// store the caller owns.
     ///
@@ -3752,6 +3823,11 @@ impl UnresolvedWorkload {
         }
 
         // Notify plugins of the resolved workload
+        // Binding and linking are done: keep each component's linked form
+        // and let its linker go. Before the plugins are told, so the HTTP
+        // plugin's `instantiate_pre` finds the link already kept.
+        resolved_workload.seal_linkers().await;
+
         for (plugin, component_ids) in bound_plugins.iter() {
             debug!(
                 plugin_id = plugin.id(),
@@ -4908,6 +4984,83 @@ mod tests {
             id,
             &format!(r#"(component (import "{MARKER}" (instance)))"#),
         )
+    }
+
+    /// Sealing keeps the linked component, frees the linker copy the binding
+    /// made, and turns a late write into a no-op rather than an unlink.
+    #[test]
+    fn sealing_frees_the_linker_copy_and_keeps_the_link() {
+        let mut a = component_from_wat(
+            "a",
+            r#"(component
+                (import "test:cow/iface" (instance $iface
+                    (export "f" (func (result u32)))))
+                (alias export $iface "f" (func $f))
+                (core func $f (canon lower (func $f)))
+                (core module $forward
+                    (import "host" "f" (func $f (result i32)))
+                    (func (export "call") (result i32) call $f))
+                (core instance $forward (instantiate $forward
+                    (with "host" (instance (export "f" (func $f))))))
+                (func (export "call") (result u32)
+                    (canon lift (core func $forward "call")))
+            )"#,
+        );
+        let call = |component: &WorkloadComponent| {
+            let ctx = crate::engine::ctx::Ctx::builder("seal", component.id()).build();
+            let mut store = wasmtime::Store::new(component.metadata.engine(), SharedCtx::new(ctx));
+            let instance = component
+                .pre_instantiate_ref()
+                .unwrap()
+                .instantiate(&mut store)
+                .unwrap();
+            let func = instance
+                .get_typed_func::<(), (u32,)>(&mut store, "call")
+                .unwrap();
+            let (value,) = func.call(&mut store, ()).unwrap();
+            value
+        };
+
+        a.metadata
+            .linker()
+            .instance("test:cow/iface")
+            .unwrap()
+            .func_wrap("f", |_, (): ()| Ok((3_u32,)))
+            .unwrap();
+        let copy = Arc::downgrade(&a.metadata.linker);
+        assert!(a.metadata.seal_linker());
+        assert!(a.metadata.sealed);
+        assert!(
+            copy.upgrade().is_none(),
+            "the linker copy is freed once the link is kept"
+        );
+        assert!(a.metadata.pre.get().is_some());
+        assert_eq!(call(&a), 3);
+        assert_eq!(call(&a), 3, "the kept link survives use");
+
+        // A late write lands in an empty linker and does not forget the link.
+        a.metadata
+            .linker()
+            .instance("test:cow/iface")
+            .unwrap()
+            .func_wrap("f", |_, (): ()| Ok((4_u32,)))
+            .unwrap();
+        assert!(a.metadata.pre.get().is_some());
+        assert_eq!(call(&a), 3, "a write after sealing reaches no instance");
+        assert!(a.metadata.seal_linker(), "sealing again is a no-op");
+
+        // A component that does not link keeps its linker and is not sealed.
+        let mut unlinked = component_from_wat(
+            "unlinked",
+            r#"(component
+                 (import "test:pre/iface" (instance (export "f" (func))))
+               )"#,
+        );
+        let before = Arc::clone(&unlinked.metadata.linker);
+        assert!(!unlinked.metadata.seal_linker());
+        assert!(!unlinked.metadata.sealed);
+        assert!(Arc::ptr_eq(&unlinked.metadata.linker, &before));
+        assert!(unlinked.pre_instantiate_ref().is_err());
     }
 
     fn marker_exporter(id: &str) -> WorkloadComponent {
