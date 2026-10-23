@@ -151,6 +151,27 @@ fn remedy(kind: &str) -> &'static str {
     }
 }
 
+/// Instantiate on `store`: the store's guest memory limiter is told that
+/// growth from zero until this returns is initial memory, and a pool refusal
+/// is explained.
+///
+/// Every instantiation in the runtime goes through here rather than calling
+/// `instantiate_async` itself. A site that does not still charges initial
+/// memory under [`crate::engine::guest_memory::GuestMemoryMode::Growth`] —
+/// the safe direction — but silently.
+///
+/// A future dropped before it completes (a cancelled `select!`) leaves the
+/// store marked as instantiating; such a store is dropped with it.
+pub(crate) async fn instantiate<T>(
+    store: &mut wasmtime::Store<SharedCtx>,
+    instantiate: impl AsyncFnOnce(&mut wasmtime::Store<SharedCtx>) -> wasmtime::Result<T>,
+) -> wasmtime::Result<T> {
+    store.data_mut().memory_limiter.begin_instantiation();
+    let instantiated = instantiate(&mut *store).await;
+    store.data_mut().memory_limiter.end_instantiation();
+    instantiated.map_err(|e| explain_instantiate_failure(store.data(), e))
+}
+
 /// Annotate `err` if it is the pooling allocator refusing an instantiation,
 /// count it, and log it (rate-limited); return any other error unchanged.
 ///

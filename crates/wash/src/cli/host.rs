@@ -341,7 +341,17 @@ pub struct HostCommand {
     /// what it would have refused, but allows the growth anyway. Use it to
     /// size a budget: watch the reported high-water mark and `would_refuse`
     /// count, then return to `enforce`. The separate `--max-process-memory`
-    /// limit remains enforced in either mode.
+    /// limit remains enforced in every mode.
+    ///
+    /// `growth` enforces like `enforce` but does not charge the memory an
+    /// instance is born with, only what it grows by. An initial memory is
+    /// mapped lazily and costs what the guest touches, which is what
+    /// `--max-process-memory` measures; charged at its declared size instead,
+    /// a 1 MiB handler that touches 70 KiB fills the budget fifteen times
+    /// faster than it fills the container. Choose it for hosts packing many
+    /// small instances. The trade is that instances which write their whole
+    /// initial memory are caught by the sampled process guard rather than
+    /// refused up front.
     ///
     /// `enforce` makes `--max-guest-memory` a real ceiling, so it has to leave
     /// the host room to be a host: wasmtime, compiled module images, NATS, OCI
@@ -1759,6 +1769,18 @@ mod policy_mode_tests {
     }
 
     #[test]
+    fn the_growth_mode_is_spelled_growth() {
+        assert_eq!(
+            parse(&["--guest-memory-mode=growth"]).guest_memory_mode,
+            GuestMemoryMode::Growth
+        );
+        assert_eq!(
+            wash_runtime::engine::guest_memory::GuestMemoryMode::from(GuestMemoryMode::Growth),
+            wash_runtime::engine::guest_memory::GuestMemoryMode::Growth
+        );
+    }
+
+    #[test]
     fn an_ip_name_lookup_grant_lapses_only_when_given_a_lifetime() {
         assert_eq!(parse(&[]).ip_name_lookup_grant_lifetime, None);
         assert_eq!(
@@ -1813,6 +1835,9 @@ pub enum GuestMemoryMode {
     /// Refuse guest memory growth past `--max-guest-memory`.
     #[default]
     Enforce,
+    /// Refuse growth past `--max-guest-memory`, but leave the memory an
+    /// instance starts with to `--max-process-memory`.
+    Growth,
 }
 
 /// `--ip-name-lookup-grant-lifetime` from a flag or environment value, reading a
@@ -1888,8 +1913,9 @@ fn parse_guest_memory_mode(raw: &str) -> Result<GuestMemoryMode, String> {
     match raw.to_ascii_lowercase().as_str() {
         "count" => Ok(GuestMemoryMode::Count),
         "enforce" => Ok(GuestMemoryMode::Enforce),
+        "growth" => Ok(GuestMemoryMode::Growth),
         _ => Err(format!(
-            "invalid guest-memory-mode {raw:?}; expected 'count' or 'enforce'"
+            "invalid guest-memory-mode {raw:?}; expected 'count', 'enforce' or 'growth'"
         )),
     }
 }
@@ -1899,6 +1925,7 @@ impl From<GuestMemoryMode> for wash_runtime::engine::guest_memory::GuestMemoryMo
         match mode {
             GuestMemoryMode::Count => Self::Count,
             GuestMemoryMode::Enforce => Self::Enforce,
+            GuestMemoryMode::Growth => Self::Growth,
         }
     }
 }

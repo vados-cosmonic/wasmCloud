@@ -3763,12 +3763,10 @@ async fn invoke_component_handler(
                 let mut store = workload_handle
                     .new_store_as(component_id, Some(identity))
                     .await?;
-                let instance = instance_pre
-                    .instantiate_async(&mut store)
-                    .await
-                    .map_err(|e| {
-                        crate::engine::pool_usage::explain_instantiate_failure(store.data(), e)
-                    })?;
+                let instance = crate::engine::pool_usage::instantiate(&mut store, async |store| {
+                    instance_pre.instantiate_async(store).await
+                })
+                .await?;
                 crate::engine::instance_pool::ComponentInstance { store, instance }
             }
         };
@@ -3831,9 +3829,10 @@ pub async fn handle_component_request(
             // Watched for as long as the store runs guest code.
             let _abandoned = watch_guard;
             // Run the http request itself by instantiating and calling the component
-            let proxy = pre.instantiate_async(&mut store).await.map_err(|e| {
-                crate::engine::pool_usage::explain_instantiate_failure(store.data(), e)
-            })?;
+            let proxy = crate::engine::pool_usage::instantiate(&mut store, async |store| {
+                pre.instantiate_async(store).await
+            })
+            .await?;
 
             guest_meter
                 .observe(&attributes, &mut store, async move |store| {

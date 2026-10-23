@@ -491,11 +491,11 @@ pub(crate) async fn run_trigger_driver(
     ingresses: Vec<Ingress>,
     cli_run_error: CliRunError,
 ) -> anyhow::Result<()> {
-    let instance = pre
-        .instantiate_async(&mut *store)
-        .await
-        .map_err(|e| crate::engine::pool_usage::explain_instantiate_failure(store.data(), e))
-        .context("failed to instantiate trigger service")?;
+    let instance = crate::engine::pool_usage::instantiate(&mut *store, async |store| {
+        pre.instantiate_async(store).await
+    })
+    .await
+    .context("failed to instantiate trigger service")?;
     // `cli/run` is optional: a service exports it (its long-running work), but a
     // pure capability host component plugin need not — in which case there is
     // simply no run loop to co-drive.

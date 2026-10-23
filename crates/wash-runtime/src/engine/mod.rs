@@ -1329,6 +1329,9 @@ impl EngineBuilder {
     /// the budget is refused. `max_guest_memory` is derived when an operator
     /// sets nothing, so every engine has a ceiling unless it opts into
     /// [`guest_memory::GuestMemoryMode::Count`].
+    /// [`guest_memory::GuestMemoryMode::Growth`] keeps the ceiling for growth
+    /// but leaves the memory an instance is born with to the process guard,
+    /// for hosts packing many small instances.
     #[must_use]
     pub fn with_guest_memory_mode(mut self, mode: guest_memory::GuestMemoryMode) -> Self {
         self.guest_memory_mode = mode;
@@ -1520,7 +1523,7 @@ impl EngineBuilder {
         }
         // Only when the budget is a real ceiling: an over-large budget the host
         // merely counts against costs nothing.
-        if self.guest_memory_mode == guest_memory::GuestMemoryMode::Enforce
+        if self.guest_memory_mode.enforces()
             && let Some(advisory) = host_memory.enforcement_advisory_within(memory_limit)
         {
             tracing::warn!("{advisory}");
