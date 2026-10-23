@@ -1223,6 +1223,7 @@ pub struct EngineBuilder {
     fuel_consumption: Option<bool>,
     parallel_compilation: Option<bool>,
     native_unwind_info: Option<bool>,
+    memory_init_cow: Option<bool>,
     socket_policy: Option<Arc<crate::sockets::policy::SocketPolicy>>,
     reserved_host_paths: Vec<PathBuf>,
     allowed_host_paths: Vec<PathBuf>,
@@ -1419,6 +1420,28 @@ impl EngineBuilder {
     /// a host holding many components wants it off. Windows requires them.
     pub fn with_native_unwind_info(mut self, enable: bool) -> Self {
         self.native_unwind_info = Some(enable);
+        self
+    }
+
+    /// Whether a linear memory starts as a copy-on-write mapping of its
+    /// component's data segments, or has them copied in at instantiation.
+    ///
+    /// On, as in wasmtime, unless this or `WASMTIME_MEMORY_INIT_COW` turns it
+    /// off. On, instantiation maps the image instead of copying it and every
+    /// instance shares its untouched pages; off, each instance copies the
+    /// segments into its own pages. The copy costs time per instantiation and
+    /// memory per instance in proportion to the data segments, which for a
+    /// small component is a few KiB and for a large one megabytes.
+    ///
+    /// What off buys is mappings: a live memory with an image splits its
+    /// reservation into four (`host_memory::MAPPINGS_PER_LIVE_MEMORY`), two of
+    /// them for the image; without one it splits into two. Linux bounds a
+    /// process's mappings by `vm.max_map_count`, 65,530 by default, and a
+    /// host that cannot raise it holds about half again as many warm instances
+    /// with images off. Raising the limit is the better lever when it is
+    /// available.
+    pub fn with_memory_init_cow(mut self, enable: bool) -> Self {
+        self.memory_init_cow = Some(enable);
         self
     }
 
@@ -1656,6 +1679,15 @@ impl EngineBuilder {
             .or_else(|| getenv::<bool>("WASMTIME_NATIVE_UNWIND_INFO"))
         {
             config.native_unwind_info(unwind || cfg!(windows));
+        }
+
+        // Copy-on-write images are wasmtime's own default, so this only
+        // carries an explicit choice through; see `with_memory_init_cow`.
+        if let Some(cow) = self
+            .memory_init_cow
+            .or_else(|| getenv::<bool>("WASMTIME_MEMORY_INIT_COW"))
+        {
+            config.memory_init_cow(cow);
         }
 
         for proposal in &self.proposals {
@@ -2251,6 +2283,17 @@ mod tests {
 
     // Unwind tables are on unless a host turns them off, and turning them off
     // reaches the engine everywhere but Windows, which requires them.
+    #[test]
+    fn memory_init_cow_is_on_and_can_be_turned_off() {
+        let engine = Engine::builder().build().expect("default engine");
+        assert!(engine.inner().get_memory_init_cow());
+        let engine = Engine::builder()
+            .with_memory_init_cow(false)
+            .build()
+            .expect("turning copy-on-write images off should build");
+        assert!(!engine.inner().get_memory_init_cow());
+    }
+
     #[test]
     fn native_unwind_info_is_on_and_can_be_turned_off() {
         let engine = Engine::builder().build().expect("default should build");

@@ -66,7 +66,9 @@ pub const WASMTIME_DEFAULT_CORE_INSTANCES: u32 = 1000;
 
 /// Memory mappings a pooled linear memory splits off once it is live: the
 /// copy-on-write image, the rest of its accessible pages (measured as two
-/// mappings), and the inaccessible remainder of the reservation.
+/// mappings), and the inaccessible remainder of the reservation. Two with
+/// images off (`EngineBuilder::with_memory_init_cow`); the derivation plans
+/// for the default.
 pub const MAPPINGS_PER_LIVE_MEMORY: u64 = 4;
 
 /// Memory mappings a pooled fiber stack's guard page splits off, when the
