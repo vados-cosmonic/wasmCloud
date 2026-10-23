@@ -42,6 +42,7 @@
 //! | --- | --- | --- |
 //! | `WASH_SCALE_MEMORY_LIMIT` | the host's max-process-memory, e.g. `4GiB` | half of the machine/container budget, at most 2 GiB |
 //! | `WASH_SCALE_GUEST_MEMORY` | max-guest-memory, the budget for guest linear memory as declared, resident or not | machine/container budget |
+//! | `WASH_SCALE_GUEST_MODE` | `enforce`, `count` or `growth`: how the guest budget is applied | `enforce` |
 //! | `WASH_SCALE_MAX_COMPONENTS` | stop after this many workloads | none |
 //! | `WASH_SCALE_MAX_SECS` | stop a flavour after this long | `600` |
 //! | `WASH_SCALE_STEP` | workloads started between measurements | `250` |
@@ -300,6 +301,7 @@ async fn run(flavour: Flavour, settings: Settings, cpu: CpuLimit, load: Load) ->
             .map_err(|e| anyhow::anyhow!(e))?,
         )
         .with_max_process_memory_bytes(settings.memory_limit)
+        .with_guest_memory_mode(settings.guest_mode)
         .build()?;
     let guard = engine
         .process_memory()

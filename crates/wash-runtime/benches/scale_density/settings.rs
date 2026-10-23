@@ -7,7 +7,10 @@ use std::{
     time::Duration,
 };
 use wash_runtime::{
-    engine::host_memory::{self, parse_bytes},
+    engine::{
+        guest_memory::GuestMemoryMode,
+        host_memory::{self, parse_bytes},
+    },
     wit::WitInterface,
 };
 
@@ -27,6 +30,8 @@ pub(super) struct Settings {
     pub(super) memory_limit: u64,
     /// Unset, the effective machine/container budget, so the process limit binds first.
     pub(super) guest_memory: u64,
+    /// How the guest budget is applied; `enforce` charges declared initial memory.
+    pub(super) guest_mode: GuestMemoryMode,
     pub(super) max_components: Option<usize>,
     pub(super) max_duration: Option<Duration>,
     pub(super) step: usize,
@@ -69,6 +74,14 @@ impl Settings {
                 .map_err(|e| anyhow::anyhow!("WASH_SCALE_GUEST_MEMORY={v}: {e}"))?,
             None => effective_memory()?,
         };
+        let guest_mode = match var("WASH_SCALE_GUEST_MODE").as_deref().map(str::trim) {
+            None | Some("enforce") => GuestMemoryMode::Enforce,
+            Some("count") => GuestMemoryMode::Count,
+            Some("growth") => GuestMemoryMode::Growth,
+            Some(other) => {
+                bail!("WASH_SCALE_GUEST_MODE must be enforce, count or growth, not {other}")
+            }
+        };
         let core_instances = match number("WASH_SCALE_CORE_INSTANCES")? {
             Some(n) => u32::try_from(n).context("WASH_SCALE_CORE_INSTANCES")?,
             None => host_memory::derive_core_instances(),
@@ -82,6 +95,7 @@ impl Settings {
             report_json: var("WASH_SCALE_REPORT_JSON"),
             memory_limit,
             guest_memory,
+            guest_mode,
             max_components: number("WASH_SCALE_MAX_COMPONENTS")?,
             max_duration: match number("WASH_SCALE_MAX_SECS")? {
                 Some(0) => None,
