@@ -60,6 +60,7 @@ use wasmtime::component::Instance;
 
 use crate::engine::ctx::SharedCtx;
 use crate::engine::instance_driver::{InstanceDriver, InstanceJob};
+use crate::engine::linked::LinkedInstancePre;
 use crate::engine::workload::WorkloadComponent;
 use crate::types::Component;
 
@@ -115,7 +116,7 @@ pub(crate) fn poolable(
 /// only to the log.
 pub(crate) async fn offer_or_install<F, S>(
     pool: &Arc<InstancePool>,
-    pre: &wasmtime::component::InstancePre<SharedCtx>,
+    pre: &LinkedInstancePre,
     job: InstanceJob,
     new_store: F,
 ) -> anyhow::Result<Result<(), Declined>>
@@ -127,10 +128,7 @@ where
         Dispatch::Sent => Ok(Ok(())),
         Dispatch::NeedsInstance(job) => {
             let mut store = new_store().await?;
-            let instance = crate::engine::pool_usage::instantiate(&mut store, async |store| {
-                pre.instantiate_async(store).await
-            })
-            .await?;
+            let instance = pre.instantiate(&mut store).await?;
             Ok(pool.dispatch_on_new(ComponentInstance { store, instance }, job))
         }
         Dispatch::Saturated(job) => Ok(Err(Declined::without_instance(job))),

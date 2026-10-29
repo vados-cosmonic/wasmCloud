@@ -66,6 +66,8 @@ const DEFAULT_POOL_SIZE: usize = 10;
 // additionally generates `bindings::named_imports::*` for `(implements ..)`
 // routing. `types` carries no functions, so it is linked once and left unnamed.
 #[cfg(not(feature = "wasm_component_model_implements"))]
+// Generated Pre methods call Wasmtime directly; runtime callers use Linked.
+#[allow(clippy::disallowed_methods)]
 mod bindings {
     crate::wasmtime::component::bindgen!({
         world: "postgres",
@@ -74,6 +76,8 @@ mod bindings {
 }
 
 #[cfg(feature = "wasm_component_model_implements")]
+// Generated Pre methods call Wasmtime directly; runtime callers use Linked.
+#[allow(clippy::disallowed_methods)]
 mod bindings {
     crate::wasmtime::component::bindgen!({
         world: "postgres",

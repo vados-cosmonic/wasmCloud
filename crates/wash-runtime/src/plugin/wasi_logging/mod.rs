@@ -16,6 +16,8 @@ use tracing::instrument;
 
 pub(crate) const PLUGIN_LOGGING_ID: &str = "wasi-logging";
 
+// Generated Pre methods call Wasmtime directly; runtime callers use Linked.
+#[allow(clippy::disallowed_methods)]
 mod bindings {
     crate::wasmtime::component::bindgen!({
         world: "logging",

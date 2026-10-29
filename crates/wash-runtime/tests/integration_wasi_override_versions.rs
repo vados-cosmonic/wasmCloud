@@ -128,6 +128,10 @@ async fn compatible_partial_overrides_preserve_other_host_functions() -> Result<
             .cloned()
             .ok_or_else(|| anyhow::anyhow!("missing component"))?;
         let mut store = resolved.new_store(&id).await?;
+        // Bypasses the runtime's `Linked` bracket on purpose: this test drives
+        // the instance by hand, and its host runs the default enforce mode,
+        // where the bracket changes nothing a test could see.
+        #[allow(clippy::disallowed_methods)]
         let instance = resolved
             .instantiate_pre(&id)
             .await?

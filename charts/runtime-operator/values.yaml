@@ -466,7 +466,7 @@ runtime:
     # reported high-water mark, then return to `enforce`. `growth` leans on
     # the host's process-memory guard (on by default, derived from
     # `limits.memory`) to catch instances that write their whole initial
-    # memory, so do not pair it with `WASH_MAX_PROCESS_MEMORY=off`.
+    # memory, so do not pair it with `WASH_HOST_MAX_PROCESS_MEMORY=off`.
     #
     # The host derives the budget: three quarters of `limits.memory`, and
     # never less than 256MiB — so keep `limits.memory` above 342Mi, or the

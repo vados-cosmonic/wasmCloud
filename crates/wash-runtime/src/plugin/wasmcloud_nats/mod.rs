@@ -55,6 +55,8 @@ pub fn binding_schema() -> crate::plugin::BindingSchema {
 // don't collide, and so a component exporting only one handler still
 // pre-instantiates. Every export is an `async func`, so each is driven inside
 // `store.run_concurrent(..)` — see [`subscriber`].
+// Generated Pre methods call Wasmtime directly; runtime callers use Linked.
+#[allow(clippy::disallowed_methods)]
 pub(super) mod jetstream_bindings {
     crate::wasmtime::component::bindgen!({
         world: "wasmcloud:nats/js-processor@0.1.3",
@@ -67,6 +69,8 @@ pub(super) mod jetstream_bindings {
     });
 }
 
+// Generated Pre methods call Wasmtime directly; runtime callers use Linked.
+#[allow(clippy::disallowed_methods)]
 pub(super) mod core_bindings {
     crate::wasmtime::component::bindgen!({
         world: "wasmcloud:nats/subscriber@0.1.3",
@@ -75,6 +79,8 @@ pub(super) mod core_bindings {
     });
 }
 
+// Generated Pre methods call Wasmtime directly; runtime callers use Linked.
+#[allow(clippy::disallowed_methods)]
 pub(super) mod kv_bindings {
     crate::wasmtime::component::bindgen!({
         world: "wasmcloud:nats/kv-watcher@0.1.3",

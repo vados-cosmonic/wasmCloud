@@ -7,3 +7,19 @@ allow-unwrap-in-tests = true
 allow-expect-in-tests = true
 allow-panic-in-tests = true
 allow-indexing-slicing-in-tests = true
+
+# A linked component is instantiated through `wash_runtime::engine::linked::Linked`,
+# never by calling a pre's own `instantiate_async`: `Linked` brackets the
+# instantiation for the guest memory budget (growth mode leaves initial memory
+# uncharged only while a store is known to be instantiating) and explains pool
+# refusals. The `LinkedPre` impls in that module are the one allowed caller.
+# Benches and tests that bypass the runtime on purpose carry an explicit
+# `#[allow(clippy::disallowed_methods)]` saying so.
+disallowed-methods = [
+  { path = "wasmtime::component::InstancePre::instantiate_async", reason = "instantiate through `engine::linked::Linked`" },
+  { path = "wasmtime_wasi::p2::bindings::CommandPre::instantiate_async", reason = "instantiate through `engine::linked::Linked`" },
+  { path = "wasmtime_wasi::p3::bindings::CommandPre::instantiate_async", reason = "instantiate through `engine::linked::Linked`" },
+  { path = "wasmtime_wasi_http::p2::bindings::ProxyPre::instantiate_async", reason = "instantiate through `engine::linked::Linked`" },
+  { path = "wasmtime_wasi_http::p3::bindings::ServicePre::instantiate_async", reason = "instantiate through `engine::linked::Linked`" },
+  { path = "wasmtime::component::Linker::instantiate_async", reason = "pre-instantiate, then instantiate through `engine::linked::Linked`" },
+]

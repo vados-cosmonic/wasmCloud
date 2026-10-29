@@ -31,7 +31,7 @@ use tokio::time::timeout;
 use tokio_util::task::AbortOnDropHandle;
 use tracing::{debug, trace};
 use wasmtime::component::{
-    Accessor, ComponentExportIndex, InstancePre, Val,
+    Accessor, ComponentExportIndex, Val,
     types::{ComponentFunc, Type},
 };
 use wasmtime::error::Context as _;
@@ -44,6 +44,7 @@ use crate::engine::ctx::SharedTlsProvider;
 use crate::engine::ctx::{AccessorActiveCtxGuard, Ctx, SharedCtx, StoreActiveCtxGuard};
 use crate::engine::instance_driver::{InstanceJob, LinkedJob};
 use crate::engine::instance_pool::{self, ComponentInstance, InstancePool};
+use crate::engine::linked::{Linked, LinkedInstancePre};
 use crate::engine::store::relocate::{self, Relocated};
 use crate::engine::store::stream_pump::Done;
 use crate::engine::value::{carries_cross_store_handle, lift_results, lower_params};
@@ -160,7 +161,7 @@ pub(crate) fn component_ctx_template_from_metadata_with_tls(
 pub(crate) struct EphemeralLinkedCall {
     /// The callee, pre-linked and ready to instantiate into whichever store
     /// this call ends up running in.
-    pub(crate) pre: InstancePre<SharedCtx>,
+    pub(crate) pre: LinkedInstancePre,
     pub(crate) engine: wasmtime::Engine,
     pub(crate) stream_payloads: Arc<super::stream_payload::StreamPayloads>,
     /// See [`crate::host::http::live_handler`] for why this is weak.
@@ -349,7 +350,7 @@ pub(crate) async fn new_store_from_templates(
     http_handler: &crate::host::HostRef,
     active: &ComponentCtxTemplate,
     linked: &[ComponentCtxTemplate],
-    linked_instances: &[(Arc<str>, InstancePre<SharedCtx>)],
+    linked_instances: &[(Arc<str>, LinkedInstancePre)],
     is_service: bool,
 ) -> anyhow::Result<wasmtime::Store<SharedCtx>> {
     let store_id = uuid::Uuid::now_v7().to_string();
@@ -393,11 +394,7 @@ pub(crate) async fn new_store_from_templates(
     let active_id = active.component_id.clone();
     for (linked_id, linked_pre) in linked_instances {
         store.data_mut().set_active_ctx(linked_id)?;
-        let instantiate_result =
-            crate::engine::pool_usage::instantiate(&mut store, async |store| {
-                linked_pre.instantiate_async(store).await
-            })
-            .await;
+        let instantiate_result = linked_pre.instantiate(&mut store).await;
         store.data_mut().set_active_ctx(&active_id)?;
         // Context rather than a new error, so the pool refusal and its remedy
         // stay in the chain underneath.
@@ -490,14 +487,12 @@ async fn new_ephemeral_store(
                 .get(component_id)
                 .with_context(|| format!("linked component '{component_id}' not found"))?;
             linked.push(template_of(&component.metadata));
-            linked_instances.push((
-                component_id.clone(),
-                component.pre_instantiate_ref().map_err(|e| {
-                    anyhow::anyhow!(
-                        "failed to pre-instantiate linked components for ephemeral call: {e}"
-                    )
-                })?,
-            ));
+            let pre = component.pre_instantiate_ref().map_err(|e| {
+                anyhow::anyhow!(
+                    "failed to pre-instantiate linked components for ephemeral call: {e}"
+                )
+            })?;
+            linked_instances.push((component_id.clone(), Linked::new(pre)));
         }
         (active, linked, linked_instances)
     };
@@ -689,11 +684,7 @@ async fn invoke_ephemeral_relocated(
         // included.
         let drain_flag = Arc::clone(&call_flag);
         let _abandoned = store.data().abandoned.watch(call_flag);
-        let instance = match crate::engine::pool_usage::instantiate(&mut store, async |store| {
-            callee_pre.instantiate_async(store).await
-        })
-        .await
-        {
+        let instance = match callee_pre.instantiate(&mut store).await {
             Ok(i) => i,
             Err(e) => {
                 let _ = ready_tx.send(Err(e));
@@ -913,10 +904,7 @@ async fn invoke_ephemeral_plain(
             let mut store = new_ephemeral_store(ephemeral_call)
                 .await
                 .map_err(|e| wasmtime::format_err!("new ephemeral store creation failed: {e:#}"))?;
-            let instance = crate::engine::pool_usage::instantiate(&mut store, async |store| {
-                ephemeral_call.pre.instantiate_async(store).await
-            })
-            .await?;
+            let instance = ephemeral_call.pre.instantiate(&mut store).await?;
             ComponentInstance { store, instance }
         }
     };

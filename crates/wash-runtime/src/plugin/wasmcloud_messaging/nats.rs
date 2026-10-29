@@ -7,6 +7,8 @@ use tokio::sync::RwLock;
 use tracing::{Instrument, debug, instrument, trace, warn};
 use wasmtime::error::Context as _;
 
+// Generated Pre methods call Wasmtime directly; runtime callers use Linked.
+#[allow(clippy::disallowed_methods)]
 mod bindings {
     crate::wasmtime::component::bindgen!({
         world: "messaging",
@@ -19,6 +21,8 @@ mod bindings {
 /// same NATS client. A separate `bindgen!` (rather than one shared module)
 /// because each plugin implements the generated host traits for its own backend
 /// — the same arrangement the sync world already uses across the three plugins.
+// Generated Pre methods call Wasmtime directly; runtime callers use Linked.
+#[allow(clippy::disallowed_methods)]
 mod async_bindings {
     crate::wasmtime::component::bindgen!({
         world: "async-messaging",

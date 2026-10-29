@@ -19,6 +19,7 @@ use wasmtime_wasi::p2::bindings::CommandPre;
 
 #[cfg(feature = "wasi-tls")]
 use crate::engine::ctx::SharedTlsProvider;
+use crate::engine::linked::{Linked, LinkedInstancePre};
 #[cfg(feature = "host-component-plugins")]
 use crate::engine::linked_call::{
     ServiceExportCall, types_are_bridge_safe, types_are_ephemeral_safe,
@@ -869,7 +870,7 @@ struct ServiceStoreRecipe {
     http_handler: crate::host::HostRef,
     active_template: ComponentCtxTemplate,
     linked_templates: Vec<ComponentCtxTemplate>,
-    linked_instances: Vec<(Arc<str>, wasmtime::component::InstancePre<SharedCtx>)>,
+    linked_instances: Vec<(Arc<str>, LinkedInstancePre)>,
     /// Stamped onto every incarnation's store, so a restart is measured like
     /// the start was. `None` on a host that measures nothing.
     metering: Option<(
@@ -975,7 +976,7 @@ impl ResolvedWorkload {
         let Some(service) = self.service.as_ref() else {
             return Ok(None);
         };
-        let pre = service.pre_instantiate()?;
+        let pre = Linked::new(service.pre_instantiate()?);
         let mut max_restarts = service.max_restarts;
         self.resolve_service_volume_mounts().await?;
         // Re-borrow after resolving volume mounts, which needs `&mut self`
@@ -987,10 +988,7 @@ impl ResolvedWorkload {
             .await?
             .build()
             .await?;
-        let instance = crate::engine::pool_usage::instantiate(&mut store, async |store| {
-            pre.instantiate_async(store).await
-        })
-        .await?;
+        let instance = pre.instantiate(&mut store).await?;
         let handle = tokio::spawn(async move {
             loop {
                 if let Err(e) = instance.wasi_cli_run().call_run(&mut store).await {
@@ -1019,7 +1017,7 @@ impl ResolvedWorkload {
         let service = self
             .service
             .as_ref()
-            .map(|s| (s.pre_instantiate_p3(), s.max_restarts));
+            .map(|s| (s.pre_instantiate_p3().map(Linked::new), s.max_restarts));
 
         if let Some((Ok(pre), mut max_restarts)) = service {
             self.resolve_service_volume_mounts().await?;
@@ -1037,18 +1035,13 @@ impl ResolvedWorkload {
             let mut store = recipe.build().await?;
             let handle = tokio::spawn(async move {
                 loop {
-                    let instance =
-                        match crate::engine::pool_usage::instantiate(&mut store, async |store| {
-                            pre.instantiate_async(store).await
-                        })
-                        .await
-                        {
-                            Ok(i) => i,
-                            Err(e) => {
-                                error!(err = %e, "failed to instantiate P3 service");
-                                break;
-                            }
-                        };
+                    let instance = match pre.instantiate(&mut store).await {
+                        Ok(i) => i,
+                        Err(e) => {
+                            error!(err = %e, "failed to instantiate P3 service");
+                            break;
+                        }
+                    };
                     let result = store
                         .run_concurrent(async move |accessor| {
                             instance.wasi_cli_run().call_run(accessor).await
@@ -1108,7 +1101,7 @@ impl ResolvedWorkload {
         let Some(service) = self.service.as_ref() else {
             return Ok(None);
         };
-        let pre = service.pre_instantiate_raw()?;
+        let pre = Linked::new(service.pre_instantiate_raw()?);
         let (serves_http, serves_messaging, max_restarts) = (
             crate::engine::exports_wasi_http(&service.metadata.component),
             crate::engine::exports_messaging_handler(&service.metadata.component),
@@ -1790,7 +1783,7 @@ impl ResolvedWorkload {
                                         EphemeralCallMode::PlainValue
                                     };
                                     LinkedTarget::Ephemeral(Arc::new(EphemeralLinkedCall {
-                                        pre: pre.clone(),
+                                        pre: Linked::new(pre.clone()),
                                         invocation: self.invocation.clone(),
                                         engine: plugin_engine.clone(),
                                         stream_payloads: self.stream_payloads.clone(),
@@ -2058,7 +2051,10 @@ impl ResolvedWorkload {
                     format!("linked component '{linked_id}' not found in workload")
                 })?;
                 linked_templates.push(self.component_ctx_template(&linked.metadata));
-                linked_instances.push((linked_id.clone(), linked.pre_instantiate_ref()?));
+                linked_instances.push((
+                    linked_id.clone(),
+                    Linked::new(linked.pre_instantiate_ref()?),
+                ));
             }
             (
                 metadata.engine().clone(),
@@ -2360,7 +2356,7 @@ impl ResolvedWorkload {
         for linked_component_id in &linked_component_ids {
             linked_instances.push((
                 linked_component_id.clone(),
-                self.instantiate_pre(linked_component_id.as_ref()).await?,
+                Linked::new(self.instantiate_pre(linked_component_id.as_ref()).await?),
             ));
         }
 
@@ -2543,7 +2539,7 @@ impl ResolvedWorkload {
                     func_idx,
                     param_tys: Arc::default(),
                     target: LinkedTarget::Ephemeral(Arc::new(EphemeralLinkedCall {
-                        pre: pre.clone(),
+                        pre: Linked::new(pre.clone()),
                         invocation: self.invocation.clone(),
                         engine: engine.clone(),
                         stream_payloads: self.stream_payloads.clone(),

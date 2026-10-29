@@ -19,6 +19,8 @@ use wasmtime_wasi::p2::{InputStream, OutputStream};
 
 const PLUGIN_BLOBSTORE_ID: &str = "wasi-blobstore";
 
+// Generated Pre methods call Wasmtime directly; runtime callers use Linked.
+#[allow(clippy::disallowed_methods)]
 mod bindings {
     wasmtime::component::bindgen!({
         world: "blobstore",

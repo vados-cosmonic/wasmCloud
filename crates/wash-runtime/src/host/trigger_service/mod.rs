@@ -50,6 +50,7 @@ use wasmtime_wasi_http::p3::bindings::Service;
 
 use crate::engine::ctx::SharedCtx;
 use crate::engine::dispatch::{GuestJob, GuestTask, Placement};
+use crate::engine::linked::{Linked, LinkedInstancePre};
 use crate::host::http::ServiceHttpJob;
 #[cfg(feature = "host-component-plugins")]
 use crate::host::job_registry::JobRegistry;
@@ -465,6 +466,7 @@ impl TriggerService {
         pre: InstancePre<SharedCtx>,
         ingresses: Vec<Ingress>,
     ) -> Self {
+        let pre = Linked::new(pre);
         let driver = tokio::spawn(async move {
             // A host component plugin's `cli/run`, where it has one at all, is
             // incidental to the capabilities it serves: an error there is
@@ -487,15 +489,14 @@ impl TriggerService {
 /// re-instantiates into the same store and re-runs this.
 pub(crate) async fn run_trigger_driver(
     store: &mut Store<SharedCtx>,
-    pre: &InstancePre<SharedCtx>,
+    pre: &LinkedInstancePre,
     ingresses: Vec<Ingress>,
     cli_run_error: CliRunError,
 ) -> anyhow::Result<()> {
-    let instance = crate::engine::pool_usage::instantiate(&mut *store, async |store| {
-        pre.instantiate_async(store).await
-    })
-    .await
-    .context("failed to instantiate trigger service")?;
+    let instance = pre
+        .instantiate(&mut *store)
+        .await
+        .context("failed to instantiate trigger service")?;
     // `cli/run` is optional: a service exports it (its long-running work), but a
     // pure capability host component plugin need not — in which case there is
     // simply no run loop to co-drive.

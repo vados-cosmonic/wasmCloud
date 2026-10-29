@@ -165,6 +165,9 @@ impl HandlerState for State {
 
     async fn instantiate(&self) -> wasmtime::Result<Instance<Ctx, NeverExpire, ReuseState>> {
         let mut store = Store::new(&self.engine, Ctx::new());
+        // Bypasses the runtime on purpose: this measures bare wasmtime, with no
+        // guest memory budget to bracket for.
+        #[allow(clippy::disallowed_methods)]
         let proxy = self.pre.instantiate_async(&mut store).await?;
         Ok(Instance {
             store,

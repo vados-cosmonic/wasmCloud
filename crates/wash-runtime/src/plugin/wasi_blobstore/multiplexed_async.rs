@@ -28,6 +28,8 @@ use crate::wit::{WitInterface, WitWorld};
 
 use super::multiplexed::{BlobBackendError, BlobContainer, BlobId, BlobProvider};
 
+// Generated Pre methods call Wasmtime directly; runtime callers use Linked.
+#[allow(clippy::disallowed_methods)]
 mod bindings {
     wasmtime::component::bindgen!({
         world: "async-blobstore",

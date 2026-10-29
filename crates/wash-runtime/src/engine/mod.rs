@@ -243,6 +243,7 @@ pub mod dispatch;
 pub mod guest_memory;
 pub(crate) mod instance_driver;
 pub(crate) mod instance_pool;
+pub(crate) mod linked;
 pub mod stream_payload;
 pub use instance_pool::{InstancePolicy, ReclaimPolicy};
 pub mod host_memory;
@@ -1443,6 +1444,7 @@ impl EngineBuilder {
     /// the budget is refused. `max_guest_memory` is derived when an operator
     /// sets nothing, so every engine has a ceiling unless it opts into
     /// [`guest_memory::GuestMemoryMode::Count`].
+    ///
     /// [`guest_memory::GuestMemoryMode::Growth`] keeps the ceiling for growth
     /// but leaves the memory an instance is born with to the process guard,
     /// for hosts packing many small instances. It needs that guard: built

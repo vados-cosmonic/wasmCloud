@@ -43,6 +43,8 @@ const DISPATCH_TARGET_WASM: &[u8] = include_bytes!("wasm/dispatch_target.wasm");
 /// A typed view over the fixture's `acme:tasks/runner` export, built against
 /// whichever instance the host picks for a call. The plugin owns the call; the
 /// host only owns the instance it runs on.
+// Generated Pre methods call Wasmtime directly; runtime callers use Linked.
+#[allow(clippy::disallowed_methods)]
 mod bindings {
     wasmtime::component::bindgen!({
         world: "runner-view",

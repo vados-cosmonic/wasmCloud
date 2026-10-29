@@ -16,8 +16,9 @@ use tracing::{Instrument, debug, error, warn};
 use crate::engine::dispatch::{GuestCall, GuestCallFuture};
 use crate::engine::instance_driver::InstanceJob;
 use crate::engine::instance_pool::{ComponentInstance, Declined, Dispatch};
+use crate::engine::linked::{Linked, LinkedInstancePre};
 use crate::engine::workload::ResolvedWorkload;
-use crate::wasmtime::component::{Accessor, InstancePre, Resource};
+use crate::wasmtime::component::{Accessor, Resource};
 
 use super::config::{AckMode, CoreSubscriptionConfig, JetStreamSubscriptionConfig, KvWatchConfig};
 use super::conn::ConnHandle;
@@ -54,16 +55,19 @@ macro_rules! handler_pre {
                     anyhow::anyhow!("component exports no wasmcloud:nats handler: {e}")
                 })
             }
+        }
 
-            async fn instantiate(
+        // The one place these bindings' own `instantiate_async` is called;
+        // every delivery instantiates through `Linked` (see
+        // `crate::engine::linked`).
+        impl crate::engine::linked::LinkedPre for $name {
+            type Instance = $proxy;
+
+            async fn instantiate_raw(
                 &self,
                 store: &mut crate::wasmtime::Store<SharedCtx>,
-            ) -> anyhow::Result<$proxy> {
-                let instance = crate::engine::pool_usage::instantiate(store, async |store| {
-                    self.0.instantiate_async(store).await
-                })
-                .await?;
-                Ok($proxy(instance))
+            ) -> crate::wasmtime::Result<$proxy> {
+                self.0.instantiate_async(store).await.map($proxy)
             }
         }
     };
@@ -130,7 +134,7 @@ fn kv_entry_to_kv_handler_wit(e: &jetstream::kv::Entry) -> kv_bindings::wasmclou
 #[derive(Clone)]
 struct HandlerTarget {
     component_id: Arc<str>,
-    pre: InstancePre<SharedCtx>,
+    pre: LinkedInstancePre,
     /// What every delivery through this target is measured under, built once
     /// per subscription rather than per delivery: neither the identity nor the
     /// operation can change under a resolved workload, and resolving the
@@ -291,9 +295,7 @@ async fn build_instance(
         _ = cancel_token.cancelled() => return Ok(None),
     };
     let instance = tokio::select! {
-        instantiated = crate::engine::pool_usage::instantiate(&mut store, async |store| {
-            target.pre.instantiate_async(store).await
-        }) => instantiated?,
+        instantiated = target.pre.instantiate(&mut store) => instantiated?,
         _ = cancel_token.cancelled() => return Ok(None),
     };
     Ok(Some((store, instance)))
@@ -699,7 +701,7 @@ pub(super) async fn spawn_jetstream_subscriptions(
     warm_set: Arc<JetStreamWarmSet>,
 ) -> anyhow::Result<()> {
     let instance_pre = workload.instantiate_pre(component_id).await?;
-    let pre = JsHandlerPre::new(instance_pre)?;
+    let pre = Linked::new(JsHandlerPre::new(instance_pre)?);
     // Built once for the whole subscription set: the same attributes every
     // JetStream delivery on this component is measured under.
     let attributes = workload
@@ -1970,7 +1972,7 @@ pub(super) async fn spawn_core_subscriptions(
     let identity = workload.component_identity(component_id).await;
     let target = HandlerTarget {
         component_id: Arc::from(component_id),
-        pre: instance_pre,
+        pre: Linked::new(instance_pre),
         attributes: identity.attributes(PLUGIN_NATS_ID, CORE_OPERATION),
     };
     let workload_id = workload_id.into();
@@ -2161,7 +2163,7 @@ pub(super) async fn spawn_kv_watches(
     let identity = workload.component_identity(component_id).await;
     let target = HandlerTarget {
         component_id: Arc::from(component_id),
-        pre: instance_pre,
+        pre: Linked::new(instance_pre),
         attributes: identity.attributes(PLUGIN_NATS_ID, KV_OPERATION),
     };
 

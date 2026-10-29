@@ -54,6 +54,10 @@ pub(crate) fn note_guest_fault(data: &SharedCtx, err: &wasmtime::Error) {
 
 #[cfg(test)]
 mod tests {
+    // Builds pools and instances by hand, below the runtime's `Linked`
+    // bracket, to test what the bracket relies on.
+    #![allow(clippy::disallowed_methods)]
+
     use super::*;
 
     #[test]

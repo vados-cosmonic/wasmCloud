@@ -253,7 +253,7 @@ async fn enforce_mode_refuses_the_growth_that_crosses_the_budget() -> Result<()>
 /// admitted without a charge, and growth past it is enforced exactly as in
 /// `Enforce`. This is the path the unit tests cannot see: the engine's
 /// budget, the limiter and its call hook installed on stores the host builds,
-/// and `pool_usage::instantiate` bracketing the instantiation.
+/// and `engine::linked::Linked` bracketing the instantiation.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn growth_mode_leaves_initial_memory_uncharged_and_enforces_growth() -> Result<()> {
     init_tracing();

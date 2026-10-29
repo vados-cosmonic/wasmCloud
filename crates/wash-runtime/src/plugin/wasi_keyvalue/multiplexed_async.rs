@@ -38,6 +38,8 @@ use crate::wit::{WitInterface, WitWorld};
 
 use super::multiplexed::{CasGuard, CasOutcome, KvBucket, KvId, KvProvider, StoreError, Versioned};
 
+// Generated Pre methods call Wasmtime directly; runtime callers use Linked.
+#[allow(clippy::disallowed_methods)]
 mod bindings {
     wasmtime::component::bindgen!({
         world: "async-keyvalue",

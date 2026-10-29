@@ -61,6 +61,7 @@ use crate::engine::abandon::{AbandonFlag, DispatchedCall};
 use crate::engine::ctx::SharedCtx;
 use crate::engine::instance_driver::{InstanceJob, InvocationSample, PoolSlot};
 use crate::engine::instance_pool::{ComponentInstance, Declined, Dispatch, InstancePool};
+use crate::engine::linked::{Linked, LinkedInstancePre};
 use crate::engine::workload::ResolvedWorkload;
 
 /// Invocations one of a service's ingresses may have queued before its driver
@@ -1307,7 +1308,7 @@ fn start_on_component(
     tokio::spawn(hand_off(
         Arc::clone(workload),
         Arc::clone(component_id),
-        pre.clone(),
+        Linked::new(pre.clone()),
         pool,
         job,
     ));
@@ -1317,7 +1318,7 @@ fn start_on_component(
 async fn hand_off(
     workload: Arc<ResolvedWorkload>,
     component_id: Arc<str>,
-    pre: InstancePre<SharedCtx>,
+    pre: LinkedInstancePre,
     pool: Option<Arc<InstancePool>>,
     job: GuestJob,
 ) {
@@ -1360,15 +1361,12 @@ async fn hand_off(
 async fn build_instance(
     workload: &ResolvedWorkload,
     component_id: &str,
-    pre: &InstancePre<SharedCtx>,
+    pre: &LinkedInstancePre,
     control: &CallControl,
 ) -> Option<anyhow::Result<ComponentInstance>> {
     let build = async {
         let mut store = workload.new_store(component_id).await?;
-        let instance = crate::engine::pool_usage::instantiate(&mut store, async |store| {
-            pre.instantiate_async(store).await
-        })
-        .await?;
+        let instance = pre.instantiate(&mut store).await?;
         anyhow::Ok(ComponentInstance { store, instance })
     };
     tokio::select! {

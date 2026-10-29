@@ -51,8 +51,8 @@
 //! takes a wasmtime call hook on every store in this mode
 //! ([`install_memory_limiter`]), which runs on each transition between host
 //! and guest for the store's life: an atomic-free counter bump, but on the
-//! path every WASI call takes. The `scale_density` bench, in `growth` mode,
-//! is where that cost shows if it matters.
+//! path every WASI call takes. A density run in `growth` mode is where that
+//! cost would show if it mattered.
 //!
 //! # What a refusal looks like to a guest
 //!
@@ -296,7 +296,8 @@ impl GuestMemoryBudget {
         self.high_water.load(Ordering::Relaxed)
     }
 
-    /// Growths refused under [`GuestMemoryMode::Enforce`].
+    /// Growths refused under [`GuestMemoryMode::Enforce`] or
+    /// [`GuestMemoryMode::Growth`].
     pub fn refused(&self) -> u64 {
         self.refused.load(Ordering::Relaxed)
     }
@@ -521,7 +522,7 @@ impl GuestMemoryBudget {
     /// Charge `bytes` and report whether the growth may proceed.
     ///
     /// Under [`GuestMemoryMode::Count`] the guest budget is observational.
-    /// The independent process limit still refuses growth in either mode.
+    /// The independent process limit still refuses growth in every mode.
     fn charge(&self, bytes: u64) -> bool {
         // No guest bytes were admitted, so neither the guest charge nor its
         // observation-only refusal counter should increase.
@@ -685,13 +686,21 @@ impl StoreMemoryLimiter {
 
     /// The store is about to instantiate: until the returned guard drops,
     /// allocation outside guest execution is initial memory. Every runtime
-    /// instantiation goes through [`crate::engine::pool_usage::instantiate`],
-    /// which holds the guard across the instantiation and no longer. Two
+    /// instantiation goes through [`crate::engine::linked::Linked`], which
+    /// holds the guard across the instantiation and no longer. Two
     /// guards on one store do not nest: the first to drop ends the interval,
     /// and what the other still admits is charged, the safe direction.
     pub(crate) fn begin_instantiation(&mut self) -> InstantiationGuard {
         self.instantiating.store(true, Ordering::Relaxed);
         InstantiationGuard(Arc::clone(&self.instantiating))
+    }
+
+    /// Whether a growth from `current` is a memory being born: the host is
+    /// instantiating, no guest code is running (a core `start` function's
+    /// `memory.grow` is growth), and the memory had no pages. A later grow
+    /// from zero pages is growth.
+    fn is_birth(&self, current: usize) -> bool {
+        self.instantiating.load(Ordering::Relaxed) && self.guest_calls == 0 && current == 0
     }
 
     fn guest_call(&mut self, event: wasmtime::CallHook) {
@@ -746,13 +755,7 @@ impl wasmtime::ResourceLimiter for StoreMemoryLimiter {
         // `desired` is the memory's new total, not a delta, and wasmtime
         // guarantees it is the larger of the two.
         let growth = (desired as u64).saturating_sub(current as u64);
-        // A memory being born, under the mode that leaves its declared size
-        // to the process guard. A later grow from zero pages is growth.
-        if budget.mode == GuestMemoryMode::Growth
-            && self.instantiating.load(Ordering::Relaxed)
-            && self.guest_calls == 0
-            && current == 0
-        {
+        if budget.mode == GuestMemoryMode::Growth && self.is_birth(current) {
             if !budget.admit_initial(growth) {
                 return Ok(false);
             }
@@ -830,6 +833,7 @@ mod tests {
     use wasmtime::ResourceLimiter as _;
 
     use super::*;
+    use crate::engine::linked::Linked;
 
     const MIB: u64 = 1024 * 1024;
 
@@ -954,11 +958,7 @@ mod tests {
                     .with_guest_memory(&budget);
                 let mut store = wasmtime::Store::new(&engine, ctx);
                 install_memory_limiter(&mut store);
-                let instance = crate::engine::pool_usage::instantiate(&mut store, async |store| {
-                    pre.instantiate_async(store).await
-                })
-                .await
-                .unwrap();
+                let instance = Linked::new(pre).instantiate(&mut store).await.unwrap();
                 let pages = instance
                     .get_typed_func::<(), (u32,)>(&mut store, "pages")
                     .unwrap();
@@ -1008,13 +1008,7 @@ mod tests {
         let ctx = SharedCtx::new(Ctx::builder("growth", "trap").build()).with_guest_memory(&budget);
         let mut store = wasmtime::Store::new(&engine, ctx);
         install_memory_limiter(&mut store);
-        assert!(
-            crate::engine::pool_usage::instantiate(&mut store, async |store| {
-                pre.instantiate_async(store).await
-            })
-            .await
-            .is_err()
-        );
+        assert!(Linked::new(pre).instantiate(&mut store).await.is_err());
         assert_eq!(store.data().memory_limiter.guest_calls, 0);
         assert!(
             !store

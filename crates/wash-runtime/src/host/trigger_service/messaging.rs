@@ -31,6 +31,8 @@ use wasmtime::component::{Accessor, AccessorTask, Instance, StreamReader};
 use crate::engine::abandon::AbandonFlag;
 use crate::engine::ctx::SharedCtx;
 
+// Generated Pre methods call Wasmtime directly; runtime callers use Linked.
+#[allow(clippy::disallowed_methods)]
 mod bindings {
     crate::wasmtime::component::bindgen!({
         world: "async-messaging",

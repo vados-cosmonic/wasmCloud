@@ -49,6 +49,8 @@ mod helpers;
 mod jetstream;
 mod labeled;
 
+// Generated Pre methods call Wasmtime directly; runtime callers use Linked.
+#[allow(clippy::disallowed_methods)]
 pub(super) mod bindings {
     crate::wasmtime::component::bindgen!({
         world: "wasmcloud:nats/imports@0.1.3",

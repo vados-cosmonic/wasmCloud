@@ -6,6 +6,9 @@
 //! `named_imports::*` so a component can import the interfaces multiple times via
 //! `(implements ..)`, each routed to its own credentialed connection pool.
 
+// Generated Pre methods call Wasmtime directly; runtime callers use Linked.
+#![allow(clippy::disallowed_methods)]
+
 #[cfg(test)]
 mod tests;
 

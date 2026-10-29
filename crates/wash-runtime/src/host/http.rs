@@ -28,6 +28,7 @@ use std::{
 };
 
 use crate::engine::abandon::{AbandonFlag, AbandonOnDrop, DispatchedCall};
+use crate::engine::linked::{Linked, LinkedInstancePre};
 use crate::host::allowed_hosts::AllowedHost;
 use crate::host::trigger_service::{BrokerMessage, MessagingJob};
 use crate::observability::rate_limit::RateLimitedWarn;
@@ -1555,7 +1556,7 @@ pub type WorkloadHandles = Arc<RwLock<HashMap<String, Arc<ComponentHandle>>>>;
 /// [`WorkloadHandles`], so a request takes it with one reference count.
 pub struct ComponentHandle {
     workload: ResolvedWorkload,
-    instance_pre: InstancePre<SharedCtx>,
+    instance_pre: LinkedInstancePre,
     component_id: String,
     identity: crate::observability::WorkloadIdentity,
     /// Whether the component targets `wasi:http@0.3`, which walks its imports
@@ -2679,7 +2680,7 @@ impl<T: Router, O: OutgoingHandler> HostHandler for Ingress<T, O> {
             let handle = ComponentHandle {
                 workload: resolved_handle.clone(),
                 targets_p3,
-                instance_pre,
+                instance_pre: Linked::new(instance_pre),
                 component_id: component_id.to_string(),
                 identity,
                 pool,
@@ -3830,10 +3831,7 @@ async fn invoke_component_handler(
                 let mut store = workload_handle
                     .new_store_as(component_id, Some(identity))
                     .await?;
-                let instance = crate::engine::pool_usage::instantiate(&mut store, async |store| {
-                    instance_pre.instantiate_async(store).await
-                })
-                .await?;
+                let instance = instance_pre.instantiate(&mut store).await?;
                 crate::engine::instance_pool::ComponentInstance { store, instance }
             }
         };
@@ -3854,7 +3852,8 @@ async fn invoke_component_handler(
     let store = workload_handle
         .new_store_as(component_id, Some(identity))
         .await?;
-    handle_component_request(store, instance_pre.clone(), req, guest_meter, identity).await
+    let pre = instance_pre.pre().clone();
+    handle_component_request(store, pre, req, guest_meter, identity).await
 }
 
 /// Handle a component request using WASI HTTP (copied from wash/crates/src/cli/dev.rs)
@@ -3880,9 +3879,11 @@ pub async fn handle_component_request(
     let req = with_body_timeout(req, crate::timeouts::http_request_body());
     let req = store.data_mut().http().new_incoming_request(scheme, req)?;
     let out = store.data_mut().http().new_response_outparam(sender)?;
-    let pre = ProxyPre::new(pre)
-        .map_err(anyhow::Error::from)
-        .context("failed to instantiate proxy pre")?;
+    let pre = Linked::new(
+        ProxyPre::new(pre)
+            .map_err(anyhow::Error::from)
+            .context("failed to instantiate proxy pre")?,
+    );
 
     // The deadline is enforced below, outside the store, where a non-yielding
     // guest cannot block it (see `crate::engine::abandon`).
@@ -3897,10 +3898,7 @@ pub async fn handle_component_request(
             // Watched for as long as the store runs guest code.
             let _abandoned = watch_guard;
             // Run the http request itself by instantiating and calling the component
-            let proxy = crate::engine::pool_usage::instantiate(&mut store, async |store| {
-                pre.instantiate_async(store).await
-            })
-            .await?;
+            let proxy = pre.instantiate(&mut store).await?;
 
             guest_meter
                 .observe(&attributes, &mut store, async move |store| {

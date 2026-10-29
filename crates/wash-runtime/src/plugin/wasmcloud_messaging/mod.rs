@@ -58,6 +58,7 @@ use opentelemetry::KeyValue;
 use opentelemetry::metrics::Counter;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
+use crate::engine::linked::Linked;
 use crate::engine::pool_share::{PoolCost, PoolReservation, PoolShare, Share};
 use crate::engine::pool_usage::PoolTotals;
 
@@ -313,10 +314,7 @@ pub(crate) async fn deliver_pooled(
             .reserve_store_before_deadline(permit, component_id, subject)
             .await?;
         let mut store = workload.new_store(component_id).await?;
-        let instance = crate::engine::pool_usage::instantiate(&mut store, async |store| {
-            pre.instantiate_async(store).await
-        })
-        .await?;
+        let instance = Linked::new(pre.clone()).instantiate(&mut store).await?;
         anyhow::Ok((permit, ComponentInstance { store, instance }))
     };
     let (result_tx, result_rx) = tokio::sync::oneshot::channel();
@@ -472,7 +470,7 @@ macro_rules! messaging_handler_dispatch {
         /// `instance_pre` is what the instance pool instantiates a warm
         /// instance from — the pool binds its own typed view.
         struct HandlerTarget {
-            handler: HandlerPre,
+            handler: $crate::engine::linked::Linked<HandlerPre>,
             instance_pre: wasmtime::component::InstancePre<$crate::engine::ctx::SharedCtx>,
         }
 
@@ -481,7 +479,9 @@ macro_rules! messaging_handler_dispatch {
                 instance_pre: wasmtime::component::InstancePre<$crate::engine::ctx::SharedCtx>,
             ) -> wasmtime::Result<Self> {
                 Ok(Self {
-                    handler: HandlerPre::new(instance_pre.clone())?,
+                    handler: $crate::engine::linked::Linked::new(HandlerPre::new(
+                        instance_pre.clone(),
+                    )?),
                     instance_pre,
                 })
             }
@@ -492,7 +492,7 @@ macro_rules! messaging_handler_dispatch {
             /// `max_concurrency`. The sync `@0.2.0` export holds `&mut Store`
             /// for the length of its call and keeps its per-message store.
             fn serves_async(&self) -> bool {
-                matches!(self.handler, HandlerPre::V0_3(_))
+                matches!(self.handler.pre(), HandlerPre::V0_3(_))
             }
 
             /// What the instance pool instantiates a warm instance from. The
@@ -561,16 +561,22 @@ macro_rules! messaging_handler_dispatch {
                     },
                 }
             }
+        }
 
-            async fn instantiate(
+        // The one place these bindings' own `instantiate_async` is called;
+        // every delivery instantiates through `Linked` (see
+        // `crate::engine::linked`).
+        impl $crate::engine::linked::LinkedPre for HandlerPre {
+            type Instance = HandlerProxy;
+
+            async fn instantiate_raw(
                 &self,
                 store: &mut wasmtime::Store<$crate::engine::ctx::SharedCtx>,
             ) -> wasmtime::Result<HandlerProxy> {
-                $crate::engine::pool_usage::instantiate(store, async |store| match self {
+                match self {
                     HandlerPre::V0_2(p) => p.instantiate_async(store).await.map(HandlerProxy::V0_2),
                     HandlerPre::V0_3(p) => p.instantiate_async(store).await.map(HandlerProxy::V0_3),
-                })
-                .await
+                }
             }
         }
 

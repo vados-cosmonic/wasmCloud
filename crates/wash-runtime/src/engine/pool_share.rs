@@ -519,6 +519,10 @@ pub(crate) mod test_support {
 
 #[cfg(test)]
 mod tests {
+    // Builds pools and instances by hand, below the runtime's `Linked`
+    // bracket, to test what the bracket relies on.
+    #![allow(clippy::disallowed_methods)]
+
     use futures::FutureExt as _;
     use tokio::task::unconstrained;
     use wasmtime::Store;

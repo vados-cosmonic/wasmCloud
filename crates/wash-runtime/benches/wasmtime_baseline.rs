@@ -153,6 +153,9 @@ async fn handle_p2(
     let proxy_pre = ProxyPre::new(pre)?;
 
     let task: JoinHandle<anyhow::Result<()>> = tokio::task::spawn(async move {
+        // Bypasses the runtime on purpose: this measures bare wasmtime, with no
+        // guest memory budget to bracket for.
+        #[allow(clippy::disallowed_methods)]
         let proxy = proxy_pre.instantiate_async(&mut store).await?;
         proxy
             .wasi_http_incoming_handler()
@@ -184,6 +187,9 @@ async fn handle_p3(
     let (wasi_req, req_io) =
         wasmtime_wasi_http::p3::Request::from_http(wasmtime_wasi_http::default_hooks(), req);
 
+    // Bypasses the runtime on purpose: this measures bare wasmtime, with no
+    // guest memory budget to bracket for.
+    #[allow(clippy::disallowed_methods)]
     let service = service_pre.instantiate_async(&mut store).await?;
 
     let collected: hyper::Response<http_body_util::Collected<bytes::Bytes>> =

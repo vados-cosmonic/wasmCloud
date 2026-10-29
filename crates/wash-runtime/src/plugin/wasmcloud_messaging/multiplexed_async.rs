@@ -31,6 +31,8 @@ use crate::wit::{WitInterface, WitWorld};
 
 use super::multiplexed::{BrokerMessage, MsgId, MsgProvider};
 
+// Generated Pre methods call Wasmtime directly; runtime callers use Linked.
+#[allow(clippy::disallowed_methods)]
 mod bindings {
     crate::wasmtime::component::bindgen!({
         world: "async-messaging",

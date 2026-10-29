@@ -22,6 +22,8 @@ use crate::{
     wit::{WitInterface, WitWorld},
 };
 
+// Generated Pre methods call Wasmtime directly; runtime callers use Linked.
+#[allow(clippy::disallowed_methods)]
 mod bindings {
     wasmtime::component::bindgen!({
         world: "keyvalue",

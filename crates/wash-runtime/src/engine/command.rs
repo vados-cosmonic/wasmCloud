@@ -7,7 +7,7 @@ use wasmtime_wasi::{
     cli::{StdinStream, StdoutStream},
 };
 
-use super::{linked_call::apply_environment, workload::ResolvedWorkload};
+use super::{linked::Linked, linked_call::apply_environment, workload::ResolvedWorkload};
 
 /// Invocation-local command arguments and standard streams.
 ///
@@ -130,11 +130,8 @@ impl ResolvedWorkload {
         // contexts and their retained directory handles intact.
         *store.data_mut().active_ctx.ctx.cli() = std::mem::take(cli.build().cli());
         let result = if p3 {
-            let command = wasmtime_wasi::p3::bindings::CommandPre::new(pre)?;
-            let command = crate::engine::pool_usage::instantiate(&mut store, async |store| {
-                command.instantiate_async(store).await
-            })
-            .await?;
+            let command = Linked::new(wasmtime_wasi::p3::bindings::CommandPre::new(pre)?);
+            let command = command.instantiate(&mut store).await?;
             store
                 .run_concurrent(async move |accessor| {
                     command.wasi_cli_run().call_run(accessor).await
@@ -142,11 +139,8 @@ impl ResolvedWorkload {
                 .await
                 .and_then(|result| result)
         } else {
-            let command = wasmtime_wasi::p2::bindings::CommandPre::new(pre)?;
-            let command = crate::engine::pool_usage::instantiate(&mut store, async |store| {
-                command.instantiate_async(store).await
-            })
-            .await?;
+            let command = Linked::new(wasmtime_wasi::p2::bindings::CommandPre::new(pre)?);
+            let command = command.instantiate(&mut store).await?;
             command.wasi_cli_run().call_run(&mut store).await
         };
         match result {

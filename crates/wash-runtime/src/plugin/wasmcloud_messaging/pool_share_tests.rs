@@ -4,6 +4,10 @@
 //! mechanism itself, and what one share of a given pool admits, is tested in
 //! [`crate::engine::pool_share`]; nothing here repeats those numbers.
 
+// Builds pools and instances by hand, below the runtime's `Linked` bracket,
+// to test what messaging admission reserves against them.
+#![allow(clippy::disallowed_methods)]
+
 use std::time::Duration;
 
 use futures::FutureExt as _;

@@ -291,6 +291,10 @@ async fn exercise(registration: Registration) -> Result<()> {
             .ok_or_else(|| anyhow::anyhow!("missing caller"))?;
         let mut store = resolved.new_store(&id).await?;
         let pre = resolved.instantiate_pre(&id).await?;
+        // Bypasses the runtime's `Linked` bracket on purpose: this test drives
+        // the instance by hand, and its host runs the default enforce mode,
+        // where the bracket changes nothing a test could see.
+        #[allow(clippy::disallowed_methods)]
         let instance = pre.instantiate_async(&mut store).await?;
         let (_, api) = instance
             .get_export(&mut store, None, "test:payload/caller")

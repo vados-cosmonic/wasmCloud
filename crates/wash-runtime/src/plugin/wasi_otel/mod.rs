@@ -33,6 +33,8 @@ use crate::wit::{WitInterface, WitWorld};
 
 pub(crate) const WASI_OTEL_ID: &str = "wasi-otel";
 
+// Generated Pre methods call Wasmtime directly; runtime callers use Linked.
+#[allow(clippy::disallowed_methods)]
 mod bindings {
     wasmtime::component::bindgen!({
         world: "otel",

@@ -30,6 +30,8 @@ mod nats;
 pub use in_memory::{InMemoryMsgBackend, InMemoryMsgProvider};
 pub use nats::{NatsMsgBackend, NatsMsgProvider};
 
+// Generated Pre methods call Wasmtime directly; runtime callers use Linked.
+#[allow(clippy::disallowed_methods)]
 mod bindings {
     crate::wasmtime::component::bindgen!({
         world: "messaging",

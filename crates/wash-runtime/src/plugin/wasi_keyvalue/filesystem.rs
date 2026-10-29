@@ -21,6 +21,8 @@ use wasmtime::component::Resource;
 
 const LIST_KEYS_BATCH_SIZE: usize = 1000;
 
+// Generated Pre methods call Wasmtime directly; runtime callers use Linked.
+#[allow(clippy::disallowed_methods)]
 mod bindings {
     wasmtime::component::bindgen!({
         world: "keyvalue",
