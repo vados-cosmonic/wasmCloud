@@ -40,6 +40,7 @@ const REQUIRED = new Map([
   ['addr2line', 'turns a trapping address back into guest source file and line'],
   ['anyhow', 'wasmtime errors interoperate with the host error type'],
   ['backtrace', 'host Rust backtrace on a wasmtime::Error'],
+  ['call-hook', 'growth budgets distinguish initial memory from growth in core start functions'],
   ['component-model', 'the host runs components, not core modules'],
   ['component-model-async', "WASIP3's async ABI"],
   ['cranelift', 'components are compiled on the host, not loaded precompiled'],

@@ -127,9 +127,10 @@ where
         Dispatch::Sent => Ok(Ok(())),
         Dispatch::NeedsInstance(job) => {
             let mut store = new_store().await?;
-            let instance = pre.instantiate_async(&mut store).await.map_err(|e| {
-                crate::engine::pool_usage::explain_instantiate_failure(store.data(), e)
-            })?;
+            let instance = crate::engine::pool_usage::instantiate(&mut store, async |store| {
+                pre.instantiate_async(store).await
+            })
+            .await?;
             Ok(pool.dispatch_on_new(ComponentInstance { store, instance }, job))
         }
         Dispatch::Saturated(job) => Ok(Err(Declined::without_instance(job))),

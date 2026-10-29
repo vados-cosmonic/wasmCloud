@@ -130,12 +130,11 @@ impl ResolvedWorkload {
         // contexts and their retained directory handles intact.
         *store.data_mut().active_ctx.ctx.cli() = std::mem::take(cli.build().cli());
         let result = if p3 {
-            let command = wasmtime_wasi::p3::bindings::CommandPre::new(pre)?
-                .instantiate_async(&mut store)
-                .await
-                .map_err(|e| {
-                    crate::engine::pool_usage::explain_instantiate_failure(store.data(), e)
-                })?;
+            let command = wasmtime_wasi::p3::bindings::CommandPre::new(pre)?;
+            let command = crate::engine::pool_usage::instantiate(&mut store, async |store| {
+                command.instantiate_async(store).await
+            })
+            .await?;
             store
                 .run_concurrent(async move |accessor| {
                     command.wasi_cli_run().call_run(accessor).await
@@ -143,12 +142,11 @@ impl ResolvedWorkload {
                 .await
                 .and_then(|result| result)
         } else {
-            let command = wasmtime_wasi::p2::bindings::CommandPre::new(pre)?
-                .instantiate_async(&mut store)
-                .await
-                .map_err(|e| {
-                    crate::engine::pool_usage::explain_instantiate_failure(store.data(), e)
-                })?;
+            let command = wasmtime_wasi::p2::bindings::CommandPre::new(pre)?;
+            let command = crate::engine::pool_usage::instantiate(&mut store, async |store| {
+                command.instantiate_async(store).await
+            })
+            .await?;
             command.wasi_cli_run().call_run(&mut store).await
         };
         match result {

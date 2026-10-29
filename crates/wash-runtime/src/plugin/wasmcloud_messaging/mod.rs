@@ -313,10 +313,10 @@ pub(crate) async fn deliver_pooled(
             .reserve_store_before_deadline(permit, component_id, subject)
             .await?;
         let mut store = workload.new_store(component_id).await?;
-        let instance = pre
-            .instantiate_async(&mut store)
-            .await
-            .map_err(|e| crate::engine::pool_usage::explain_instantiate_failure(store.data(), e))?;
+        let instance = crate::engine::pool_usage::instantiate(&mut store, async |store| {
+            pre.instantiate_async(store).await
+        })
+        .await?;
         anyhow::Ok((permit, ComponentInstance { store, instance }))
     };
     let (result_tx, result_rx) = tokio::sync::oneshot::channel();
@@ -566,19 +566,11 @@ macro_rules! messaging_handler_dispatch {
                 &self,
                 store: &mut wasmtime::Store<$crate::engine::ctx::SharedCtx>,
             ) -> wasmtime::Result<HandlerProxy> {
-                let instantiated = match self {
-                    HandlerPre::V0_2(p) => p
-                        .instantiate_async(&mut *store)
-                        .await
-                        .map(HandlerProxy::V0_2),
-                    HandlerPre::V0_3(p) => p
-                        .instantiate_async(&mut *store)
-                        .await
-                        .map(HandlerProxy::V0_3),
-                };
-                instantiated.map_err(|e| {
-                    $crate::engine::pool_usage::explain_instantiate_failure(store.data(), e)
+                $crate::engine::pool_usage::instantiate(store, async |store| match self {
+                    HandlerPre::V0_2(p) => p.instantiate_async(store).await.map(HandlerProxy::V0_2),
+                    HandlerPre::V0_3(p) => p.instantiate_async(store).await.map(HandlerProxy::V0_3),
                 })
+                .await
             }
         }
 

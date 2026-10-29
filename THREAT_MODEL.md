@@ -94,6 +94,7 @@ Private address ranges (RFC 1918, ULA, CGNAT) are reachable unless the operator 
 | --- | --- | --- |
 | `--socket-egress=count` | 5 | Raw socket egress is counted, not enforced. |
 | `--guest-memory-mode=count` | 6 | Total guest memory is counted, not enforced. |
+| `--guest-memory-mode=growth` | 6 | The memory an instance starts with is not charged to the budget; only `--max-process-memory` bounds it, after the fact, so a burst of instances can overshoot between its samples. |
 | `--deny-special-ranges=false` | 5 | Loopback, link-local and metadata addresses become reachable. |
 | `--http-local-routing` | 3 | Any workload can claim a hostname and receive its neighbors' requests, in plaintext. |
 | `--wasi-webgpu` | 1 | The GPU and its driver sit outside wasmtime's isolation. |
