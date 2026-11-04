@@ -39,6 +39,7 @@ use wash_runtime::{
 };
 
 mod common;
+use common::component_workload_request;
 use common::streaming::time_arrivals;
 use common::{http_only_host_interfaces, start_host_with_p3_http_handler};
 
@@ -139,27 +140,13 @@ async fn test_p3_cross_component_stream_to_http() -> Result<()> {
 async fn test_p3_incoming_handler_streams_incrementally() -> Result<()> {
     let (addr, host) = start_host_with_p3_http_handler("127.0.0.1:0").await?;
 
-    let req = WorkloadStartRequest {
-        workload_id: uuid::Uuid::new_v4().to_string(),
-        workload: Workload {
-            namespace: "test".to_string(),
-            name: "p3-stream-pacer".to_string(),
-            annotations: HashMap::new(),
-            service: None,
-            components: vec![Component {
-                name: "stream-pacer".to_string(),
-                digest: None,
-                bytes: bytes::Bytes::from_static(STREAM_PACER_P3_WASM),
-                local_resources: LocalResources::default(),
-                pool_size: 1,
-                max_invocations: 100,
-                max_concurrency: 1,
-                ..Default::default()
-            }],
-            host_interfaces: http_only_host_interfaces("p3-pacer"),
-            volumes: vec![],
-        },
-    };
+    let req = component_workload_request(
+        "stream-pacer",
+        "p3-stream-pacer",
+        STREAM_PACER_P3_WASM,
+        LocalResources::default(),
+        http_only_host_interfaces("p3-pacer"),
+    );
 
     host.workload_start(req)
         .await

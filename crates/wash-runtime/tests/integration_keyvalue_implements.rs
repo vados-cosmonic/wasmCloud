@@ -44,6 +44,7 @@ use wash_runtime::{
 };
 
 mod common;
+use common::component_workload_request;
 use common::http_incoming_handler_interface;
 use common::start_dev_router_host;
 
@@ -97,27 +98,13 @@ async fn start_workload(
 ) -> Result<wash_runtime::types::WorkloadStatus> {
     let mut host_interfaces = vec![http_incoming_handler_interface("kv-implements", None)];
     host_interfaces.extend(stores);
-    let req = WorkloadStartRequest {
-        workload_id: uuid::Uuid::new_v4().to_string(),
-        workload: Workload {
-            namespace: "test".to_string(),
-            name: "keyvalue-implements".to_string(),
-            annotations: HashMap::new(),
-            service: None,
-            components: vec![Component {
-                name: "keyvalue-implements.wasm".to_string(),
-                digest: None,
-                bytes: bytes::Bytes::from_static(KEYVALUE_IMPLEMENTS_WASM),
-                local_resources: LocalResources::default(),
-                pool_size: 1,
-                max_invocations: 100,
-                max_concurrency: 1,
-                ..Default::default()
-            }],
-            host_interfaces,
-            volumes: vec![],
-        },
-    };
+    let req = component_workload_request(
+        "keyvalue-implements.wasm",
+        "keyvalue-implements",
+        KEYVALUE_IMPLEMENTS_WASM,
+        LocalResources::default(),
+        host_interfaces,
+    );
     let resp = host
         .workload_start(req)
         .await

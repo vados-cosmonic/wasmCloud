@@ -22,6 +22,7 @@ use wash_runtime::{
 };
 
 mod common;
+use common::component_workload_request;
 use common::{
     http_blobstore_host_interfaces as p3_http_blobstore_host_interfaces,
     http_counter_host_interfaces, http_only_host_interfaces as p3_http_host_interfaces,
@@ -58,27 +59,13 @@ fn engine_with_p3() -> Engine {
 async fn test_p3_http_handler_serves_request() -> Result<()> {
     let (addr, host) = start_p3_host("127.0.0.1:0").await?;
 
-    let req = WorkloadStartRequest {
-        workload_id: uuid::Uuid::new_v4().to_string(),
-        workload: Workload {
-            namespace: "test".to_string(),
-            name: "p3-http-handler".to_string(),
-            annotations: HashMap::new(),
-            service: None,
-            components: vec![Component {
-                name: "http-handler-p3.wasm".to_string(),
-                digest: None,
-                bytes: bytes::Bytes::from_static(HTTP_HANDLER_P3_WASM),
-                local_resources: LocalResources::default(),
-                pool_size: 1,
-                max_invocations: 100,
-                max_concurrency: 1,
-                ..Default::default()
-            }],
-            host_interfaces: p3_http_host_interfaces("p3-handler"),
-            volumes: vec![],
-        },
-    };
+    let req = component_workload_request(
+        "http-handler-p3.wasm",
+        "p3-http-handler",
+        HTTP_HANDLER_P3_WASM,
+        LocalResources::default(),
+        p3_http_host_interfaces("p3-handler"),
+    );
 
     host.workload_start(req).await?;
 
@@ -112,27 +99,13 @@ async fn test_p3_http_handler_serves_request() -> Result<()> {
 async fn test_p3_http_blobstore() -> Result<()> {
     let (addr, host) = start_p3_host("127.0.0.1:0").await?;
 
-    let req = WorkloadStartRequest {
-        workload_id: uuid::Uuid::new_v4().to_string(),
-        workload: Workload {
-            namespace: "test".to_string(),
-            name: "p3-http-blobstore".to_string(),
-            annotations: HashMap::new(),
-            service: None,
-            components: vec![Component {
-                name: "http-blobstore-p3.wasm".to_string(),
-                digest: None,
-                bytes: bytes::Bytes::from_static(HTTP_BLOBSTORE_P3_WASM),
-                local_resources: LocalResources::default(),
-                pool_size: 1,
-                max_invocations: 100,
-                max_concurrency: 1,
-                ..Default::default()
-            }],
-            host_interfaces: p3_http_blobstore_host_interfaces("p3-blobstore"),
-            volumes: vec![],
-        },
-    };
+    let req = component_workload_request(
+        "http-blobstore-p3.wasm",
+        "p3-http-blobstore",
+        HTTP_BLOBSTORE_P3_WASM,
+        LocalResources::default(),
+        p3_http_blobstore_host_interfaces("p3-blobstore"),
+    );
 
     host.workload_start(req).await?;
 
@@ -169,27 +142,13 @@ async fn test_p3_http_blobstore() -> Result<()> {
 async fn test_p3_http_concurrent_requests() -> Result<()> {
     let (addr, host) = start_p3_host("127.0.0.1:0").await?;
 
-    let req = WorkloadStartRequest {
-        workload_id: uuid::Uuid::new_v4().to_string(),
-        workload: Workload {
-            namespace: "test".to_string(),
-            name: "p3-http-concurrent".to_string(),
-            annotations: HashMap::new(),
-            service: None,
-            components: vec![Component {
-                name: "http-handler-p3.wasm".to_string(),
-                digest: None,
-                bytes: bytes::Bytes::from_static(HTTP_HANDLER_P3_WASM),
-                local_resources: LocalResources::default(),
-                pool_size: 1,
-                max_invocations: 100,
-                max_concurrency: 1,
-                ..Default::default()
-            }],
-            host_interfaces: p3_http_host_interfaces("p3-concurrent"),
-            volumes: vec![],
-        },
-    };
+    let req = component_workload_request(
+        "http-handler-p3.wasm",
+        "p3-http-concurrent",
+        HTTP_HANDLER_P3_WASM,
+        LocalResources::default(),
+        p3_http_host_interfaces("p3-concurrent"),
+    );
 
     host.workload_start(req).await?;
 

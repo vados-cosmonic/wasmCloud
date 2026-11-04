@@ -38,6 +38,7 @@ use wash_runtime::{
 };
 
 mod common;
+use common::component_workload_request;
 use common::http_incoming_handler_interface;
 use common::start_dev_router_host;
 
@@ -85,27 +86,13 @@ async fn standalone_and_multiplexed_keyvalue_coexist() -> Result<()> {
         kv_interface(Some("sessions"), Some("in-memory")),
     ];
 
-    let req = WorkloadStartRequest {
-        workload_id: uuid::Uuid::new_v4().to_string(),
-        workload: Workload {
-            namespace: "test".to_string(),
-            name: "keyvalue-coexist".to_string(),
-            annotations: HashMap::new(),
-            service: None,
-            components: vec![Component {
-                name: "keyvalue-counter.wasm".to_string(),
-                digest: None,
-                bytes: bytes::Bytes::from_static(KEYVALUE_COUNTER_WASM),
-                local_resources: LocalResources::default(),
-                pool_size: 1,
-                max_invocations: 100,
-                max_concurrency: 1,
-                ..Default::default()
-            }],
-            host_interfaces,
-            volumes: vec![],
-        },
-    };
+    let req = component_workload_request(
+        "keyvalue-counter.wasm",
+        "keyvalue-coexist",
+        KEYVALUE_COUNTER_WASM,
+        LocalResources::default(),
+        host_interfaces,
+    );
 
     // Instantiation runs BOTH plugins' `add_to_linker` on the same linker.
     // Success here is the core coexistence assertion: the default-instance and

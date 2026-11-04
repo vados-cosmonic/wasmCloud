@@ -41,6 +41,7 @@ use wash_runtime::{
 };
 
 mod common;
+use common::component_workload_request;
 use common::get_ok_body;
 use common::http_incoming_handler_interface;
 use common::start_dev_router_host;
@@ -79,27 +80,13 @@ async fn p3_guest_cas_swap_detects_aba() -> Result<()> {
         kv_store_iface("kv"),
     ];
 
-    let req = WorkloadStartRequest {
-        workload_id: uuid::Uuid::new_v4().to_string(),
-        workload: Workload {
-            namespace: "test".to_string(),
-            name: "keyvalue-implements-p3".to_string(),
-            annotations: HashMap::new(),
-            service: None,
-            components: vec![Component {
-                name: "keyvalue-implements-p3.wasm".to_string(),
-                digest: None,
-                bytes: bytes::Bytes::from_static(KEYVALUE_IMPLEMENTS_P3_WASM),
-                local_resources: LocalResources::default(),
-                pool_size: 1,
-                max_invocations: 100,
-                max_concurrency: 1,
-                ..Default::default()
-            }],
-            host_interfaces,
-            volumes: vec![],
-        },
-    };
+    let req = component_workload_request(
+        "keyvalue-implements-p3.wasm",
+        "keyvalue-implements-p3",
+        KEYVALUE_IMPLEMENTS_P3_WASM,
+        LocalResources::default(),
+        host_interfaces,
+    );
 
     // Binding runs `add_to_linker` for the named `store` plus standalone
     // `types`/`cas`. Assert the workload actually reached Running (a labeled

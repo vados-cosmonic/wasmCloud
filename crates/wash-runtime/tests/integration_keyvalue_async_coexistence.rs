@@ -44,6 +44,7 @@ use wash_runtime::{
 };
 
 mod common;
+use common::component_workload_request;
 use common::http_incoming_handler_interface;
 use common::start_dev_router_host;
 use common::start_running_workload;
@@ -91,27 +92,13 @@ fn workload(
     wasm: &'static [u8],
     host_interfaces: Vec<WitInterface>,
 ) -> WorkloadStartRequest {
-    WorkloadStartRequest {
-        workload_id: uuid::Uuid::new_v4().to_string(),
-        workload: Workload {
-            namespace: "test".to_string(),
-            name: name.to_string(),
-            annotations: HashMap::new(),
-            service: None,
-            components: vec![Component {
-                name: component.to_string(),
-                digest: None,
-                bytes: bytes::Bytes::from_static(wasm),
-                local_resources: LocalResources::default(),
-                pool_size: 1,
-                max_invocations: 100,
-                max_concurrency: 1,
-                ..Default::default()
-            }],
-            host_interfaces,
-            volumes: vec![],
-        },
-    }
+    component_workload_request(
+        &component,
+        &name,
+        wasm,
+        LocalResources::default(),
+        host_interfaces,
+    )
 }
 
 #[tokio::test]
