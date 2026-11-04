@@ -48,8 +48,10 @@ use wash_runtime::{
 };
 
 mod common;
+use common::get_ok_body;
 use common::http_incoming_handler_interface;
 use common::start_dev_router_host;
+use common::start_running_workload;
 
 const POSTGRES_IMPLEMENTS_WASM: &[u8] = include_bytes!("wasm/postgres_implements.wasm");
 
@@ -192,35 +194,14 @@ async fn implements_imports_route_to_per_credential_connections() -> Result<()> 
     // against the declared interfaces. `workload_start` returns Ok even on
     // resolution failure (it encodes the error in the status), so assert the
     // workload actually reached Running.
-    let resp = host
-        .workload_start(req)
+    start_running_workload(&host, req)
         .await
-        .context("workload_start call failed")?;
-    assert_eq!(
-        resp.workload_status.workload_state,
-        WorkloadState::Running,
-        "workload should resolve: {}",
-        resp.workload_status.message
-    );
+        .context("workload should resolve")?;
 
     // Drive the guest: it reads team_a's table through both labels. `isolated`
     // means team-a (owner) read its row while team-b (no grant) was refused —
     // i.e. each implements import resolved to its own credentialed connection.
-    let client = reqwest::Client::new();
-    let response = timeout(
-        Duration::from_secs(15),
-        client
-            .get(format!("http://{addr}/"))
-            .header("HOST", "pg-implements")
-            .send(),
-    )
-    .await
-    .context("request timed out")?
-    .context("request failed")?;
-
-    let status = response.status();
-    let body = response.text().await?;
-    assert!(status.is_success(), "expected 200, got {status}: {body}");
+    let body = get_ok_body(addr, "pg-implements").await?;
     assert_eq!(
         body, "isolated",
         "each implements import must route to its own credentialed connection \

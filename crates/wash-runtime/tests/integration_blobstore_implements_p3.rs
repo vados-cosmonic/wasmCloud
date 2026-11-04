@@ -45,8 +45,10 @@ use wash_runtime::{
 };
 
 mod common;
+use common::get_ok_body;
 use common::http_incoming_handler_interface;
 use common::start_dev_router_host;
+use common::start_running_workload;
 
 const BLOBSTORE_IMPLEMENTS_P3_WASM: &[u8] = include_bytes!("wasm/blobstore_implements_p3.wasm");
 
@@ -127,35 +129,14 @@ async fn p3_guest_streams_blobstore_through_nats() -> Result<()> {
     // Binding runs the named-imports `add_to_linker` for both `store-a` and
     // `objects-a`. `workload_start` returns Ok even on resolution failure (it
     // encodes the error in the status), so assert it actually reached Running.
-    let resp = host
-        .workload_start(req)
+    start_running_workload(&host, req)
         .await
-        .context("workload_start call failed")?;
-    assert_eq!(
-        resp.workload_status.workload_state,
-        WorkloadState::Running,
-        "workload should resolve: {}",
-        resp.workload_status.message
-    );
+        .context("workload should resolve")?;
 
     // Drive the guest: it creates a container, streams an object in, reads it
     // back, and echoes the bytes. A matching body proves the stream ABI flowed
     // both directions through the real NATS object store.
-    let client = reqwest::Client::new();
-    let response = timeout(
-        Duration::from_secs(15),
-        client
-            .get(format!("http://{addr}/"))
-            .header("HOST", "blob-impl")
-            .send(),
-    )
-    .await
-    .context("request timed out")?
-    .context("request failed")?;
-
-    let status = response.status();
-    let body = response.text().await?;
-    assert!(status.is_success(), "expected 200, got {status}: {body}");
+    let body = get_ok_body(addr, "blob-impl").await?;
     assert_eq!(
         body, "meow from a real p3 guest",
         "the guest must round-trip the object body through the NATS-backed stream ABI"

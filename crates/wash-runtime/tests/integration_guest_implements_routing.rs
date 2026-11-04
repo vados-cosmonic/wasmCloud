@@ -33,6 +33,7 @@ use wash_runtime::{
 };
 
 mod common;
+use common::get_ok_body;
 use common::http_incoming_handler_interface;
 use common::start_dev_router_host;
 
@@ -92,21 +93,7 @@ async fn labelled_imports_route_to_the_sibling_they_name() -> Result<()> {
         resp.workload_status.message
     );
 
-    let client = reqwest::Client::new();
-    let response = timeout(
-        Duration::from_secs(10),
-        client
-            .get(format!("http://{addr}/"))
-            .header("HOST", "feeds")
-            .send(),
-    )
-    .await
-    .context("request timed out")?
-    .context("request failed")?;
-
-    let status = response.status();
-    let body = response.text().await?;
-    assert!(status.is_success(), "expected 200, got {status}: {body}");
+    let body = get_ok_body(addr, "feeds").await?;
     assert_eq!(
         body, "feed-a|feed-b",
         "each labelled import must reach the sibling component its label names"

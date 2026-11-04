@@ -41,8 +41,10 @@ use wash_runtime::{
 };
 
 mod common;
+use common::get_ok_body;
 use common::http_incoming_handler_interface;
 use common::start_dev_router_host;
+use common::start_running_workload;
 
 const KEYVALUE_IMPLEMENTS_P3_WASM: &[u8] = include_bytes!("wasm/keyvalue_implements_p3.wasm");
 
@@ -102,32 +104,11 @@ async fn p3_guest_cas_swap_detects_aba() -> Result<()> {
     // Binding runs `add_to_linker` for the named `store` plus standalone
     // `types`/`cas`. Assert the workload actually reached Running (a labeled
     // store + cas guest is exactly the case the WIT restructure enables).
-    let resp = host
-        .workload_start(req)
+    start_running_workload(&host, req)
         .await
-        .context("workload_start call failed")?;
-    assert_eq!(
-        resp.workload_status.workload_state,
-        WorkloadState::Running,
-        "workload should resolve (labeled store + standalone cas): {}",
-        resp.workload_status.message
-    );
+        .context("workload should resolve (labeled store + standalone cas)")?;
 
-    let client = reqwest::Client::new();
-    let response = timeout(
-        Duration::from_secs(15),
-        client
-            .get(format!("http://{addr}/"))
-            .header("HOST", "kv-impl")
-            .send(),
-    )
-    .await
-    .context("request timed out")?
-    .context("request failed")?;
-
-    let status = response.status();
-    let body = response.text().await?;
-    assert!(status.is_success(), "expected 200, got {status}: {body}");
+    let body = get_ok_body(addr, "kv-impl").await?;
     assert_eq!(
         body, "ok",
         "guest must observe: ABA swap stale, current-version swap succeeds, empty cas-options rejected"

@@ -46,6 +46,7 @@ use wash_runtime::{
 mod common;
 use common::http_incoming_handler_interface;
 use common::start_dev_router_host;
+use common::start_running_workload;
 
 const KEYVALUE_COUNTER_WASM: &[u8] = include_bytes!("wasm/keyvalue_counter.wasm");
 const KEYVALUE_IMPLEMENTS_P3_WASM: &[u8] = include_bytes!("wasm/keyvalue_implements_p3.wasm");
@@ -159,16 +160,9 @@ async fn standalone_sync_and_async_keyvalue_coexist() -> Result<()> {
             wasmcloud_kv_store("kv"),
         ],
     );
-    let resp = host
-        .workload_start(async_)
+    start_running_workload(&host, async_)
         .await
-        .context("async keyvalue workload_start failed")?;
-    assert_eq!(
-        resp.workload_status.workload_state,
-        WorkloadState::Running,
-        "async-multiplexed keyvalue should run alongside the sync plugins: {}",
-        resp.workload_status.message
-    );
+        .context("async-multiplexed keyvalue should run alongside the sync plugins")?;
 
     // Both workloads reaching `Running` above is the coexistence proof: the
     // standalone, sync-multiplexed, and async-multiplexed plugins all ran their
