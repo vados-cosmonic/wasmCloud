@@ -17,11 +17,7 @@ use tracing::{Subscriber, span::Attributes};
 use tracing_subscriber::{Layer, layer::Context as LayerContext, prelude::*, registry::Registry};
 
 use wash_runtime::{
-    engine::Engine,
-    host::{
-        HostApi, HostBuilder,
-        http::{DevRouter, Ingress},
-    },
+    host::HostApi,
     plugin::wasi_blobstore::InMemoryBlobstore,
     types::{Component, LocalResources, Workload, WorkloadStartRequest},
     wit::WitInterface,

@@ -17,18 +17,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use std::collections::HashMap;
-use std::sync::Arc;
-use std::time::Duration;
 
 use anyhow::{Context, Result};
-use tokio::time::timeout;
 
 use wash_runtime::{
-    engine::Engine,
-    host::{
-        HostApi, HostBuilder,
-        http::{DevRouter, Ingress},
-    },
+    host::HostApi,
     types::{Component, LocalResources, Workload, WorkloadStartRequest},
 };
 

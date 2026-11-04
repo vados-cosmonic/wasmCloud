@@ -20,7 +20,6 @@
 //! itself* emits the `(implements ..)` imports.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::Arc;
@@ -30,16 +29,12 @@ use anyhow::{Context, Result};
 use tokio::time::timeout;
 
 use wash_runtime::{
-    engine::Engine,
-    host::{
-        Host, HostApi, HostBuilder,
-        http::{DevRouter, Ingress},
-    },
+    host::{Host, HostApi},
     plugin::{
         PluginBindingSet, PluginBindings,
         wasi_keyvalue::{FilesystemProvider, InMemoryProvider, MultiplexedKeyValue},
     },
-    types::{Component, LocalResources, Workload, WorkloadStartRequest, WorkloadState},
+    types::{LocalResources, WorkloadState},
     wit::WitInterface,
 };
 

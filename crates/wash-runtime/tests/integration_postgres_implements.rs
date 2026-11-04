@@ -21,7 +21,7 @@
 ))]
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -31,19 +31,13 @@ use testcontainers::{
     core::{IntoContainerPort, WaitFor},
     runners::AsyncRunner,
 };
-use tokio::time::timeout;
 
 use wash_runtime::{
-    engine::Engine,
-    host::{
-        HostApi, HostBuilder,
-        http::{DevRouter, Ingress},
-    },
     plugin::{
         PluginBindingSet, PluginBindings,
         wasmcloud_postgres::{PgId, WasmcloudPostgres},
     },
-    types::{Component, LocalResources, Workload, WorkloadStartRequest, WorkloadState},
+    types::LocalResources,
     wit::WitInterface,
 };
 

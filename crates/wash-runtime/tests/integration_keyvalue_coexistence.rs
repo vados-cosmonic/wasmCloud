@@ -19,7 +19,6 @@
 //! (and persists in) the standalone backend.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -27,13 +26,9 @@ use anyhow::{Context, Result};
 use tokio::time::timeout;
 
 use wash_runtime::{
-    engine::Engine,
-    host::{
-        HostApi, HostBuilder,
-        http::{DevRouter, Ingress},
-    },
+    host::HostApi,
     plugin::wasi_keyvalue::{InMemoryKeyValue, InMemoryProvider, MultiplexedKeyValue},
-    types::{Component, LocalResources, Workload, WorkloadStartRequest},
+    types::LocalResources,
     wit::WitInterface,
 };
 

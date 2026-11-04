@@ -21,11 +21,7 @@ use testcontainers::{
 use tokio::time::timeout;
 
 use wash_runtime::{
-    engine::Engine,
-    host::{
-        HostApi, HostBuilder,
-        http::{DevRouter, Ingress},
-    },
+    host::HostApi,
     plugin::wasi_blobstore::{NatsBlobstore, PLUGIN_BLOBSTORE_ID},
     plugin::{PluginBindingSet, PluginBindings, WorkloadConfigPolicy},
     types::{Component, LocalResources, Workload, WorkloadStartRequest, WorkloadState},

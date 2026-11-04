@@ -19,11 +19,7 @@ use testcontainers::{
 };
 
 use wash_runtime::{
-    engine::Engine,
-    host::{
-        HostApi, HostBuilder,
-        http::{DevRouter, Ingress},
-    },
+    host::HostApi,
     plugin::wasmcloud_messaging::{MessagingLimits, NatsMessaging},
     types::{Component, LocalResources, Workload, WorkloadStartRequest},
     wit::WitInterface,

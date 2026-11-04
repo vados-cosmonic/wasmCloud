@@ -38,9 +38,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 
-use wash_runtime::engine::Engine;
-use wash_runtime::host::http::{DevRouter, Ingress};
-use wash_runtime::host::{HostApi, HostBuilder};
+use wash_runtime::host::HostApi;
 use wash_runtime::plugin::wasmcloud_messaging::InMemoryMessaging;
 use wash_runtime::plugin::{
     wasi_blobstore::InMemoryBlobstore, wasi_config::DynamicConfig, wasi_keyvalue::InMemoryKeyValue,

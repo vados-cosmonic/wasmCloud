@@ -14,10 +14,7 @@
 #![cfg(feature = "wasmcloud-postgres")]
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use std::time::Duration;
-
 use anyhow::{Context, Result};
-use tokio::time::timeout;
 
 mod common;
 use common::get_ok_body;
