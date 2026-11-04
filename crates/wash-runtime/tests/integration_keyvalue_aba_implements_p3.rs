@@ -42,6 +42,7 @@ use wash_runtime::{
 
 mod common;
 use common::http_incoming_handler_interface;
+use common::start_dev_router_host;
 
 const KEYVALUE_IMPLEMENTS_P3_WASM: &[u8] = include_bytes!("wasm/keyvalue_implements_p3.wasm");
 
@@ -64,17 +65,12 @@ fn kv_store_iface(name: &str) -> WitInterface {
 
 #[tokio::test]
 async fn p3_guest_cas_swap_detects_aba() -> Result<()> {
-    let engine = Engine::builder().build()?;
-    let ingress = Ingress::new(DevRouter::default(), "127.0.0.1:0".parse()?).await?;
-    let addr = ingress.addr();
-    let host = HostBuilder::new()
-        .with_engine(engine)
-        .with_http_handler(Arc::new(ingress))
-        .with_plugin(Arc::new(
+    let (addr, host) = start_dev_router_host(|builder| {
+        builder.with_plugin(Arc::new(
             MultiplexedAsyncKeyValue::new().with_provider(Arc::new(InMemoryProvider)),
-        ))?
-        .build()?;
-    let host = host.start().await.context("failed to start host")?;
+        ))
+    })
+    .await?;
 
     let host_interfaces = vec![
         http_incoming_handler_interface("kv-impl", None),

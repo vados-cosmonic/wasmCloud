@@ -46,6 +46,7 @@ use wash_runtime::{
 
 mod common;
 use common::http_incoming_handler_interface;
+use common::start_dev_router_host;
 
 const BLOBSTORE_IMPLEMENTS_P3_WASM: &[u8] = include_bytes!("wasm/blobstore_implements_p3.wasm");
 
@@ -79,22 +80,19 @@ async fn p3_guest_streams_blobstore_through_nats() -> Result<()> {
     let nats_url = format!("nats://127.0.0.1:{nats_port}");
 
     // --- host with the async multiplexed blobstore plugin + NATS provider ---
-    let engine = Engine::builder().build()?;
-    let ingress = Ingress::new(DevRouter::default(), "127.0.0.1:0".parse()?).await?;
-    let addr = ingress.addr();
-    let host = HostBuilder::new()
-        .with_engine(engine)
-        .with_http_handler(Arc::new(ingress))
-        .with_plugin(Arc::new(
-            MultiplexedAsyncBlobstore::new().with_provider(Arc::new(NatsBlobProvider::default())),
-        ))?
-        .with_plugin_bindings(PluginBindings::new().with_plugin(
-            PluginBindingSet::new("wasmcloud-blobstore-multiplexed").with_base(
-                wash_runtime::wit::Config::from_iter([("url".to_string(), nats_url)]),
-            ),
-        ))
-        .build()?;
-    let host = host.start().await.context("failed to start host")?;
+    let (addr, host) = start_dev_router_host(|builder| {
+        Ok(builder
+            .with_plugin(Arc::new(
+                MultiplexedAsyncBlobstore::new()
+                    .with_provider(Arc::new(NatsBlobProvider::default())),
+            ))?
+            .with_plugin_bindings(PluginBindings::new().with_plugin(
+                PluginBindingSet::new("wasmcloud-blobstore-multiplexed").with_base(
+                    wash_runtime::wit::Config::from_iter([("url".to_string(), nats_url)]),
+                ),
+            )))
+    })
+    .await?;
 
     // The guest's `store-a` (blobstore) and `objects-a` (container) implements
     // imports both route to the same NATS server (pooled by url).

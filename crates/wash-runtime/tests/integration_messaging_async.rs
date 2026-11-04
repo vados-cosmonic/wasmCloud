@@ -37,6 +37,7 @@ use wash_runtime::types::{
 use wash_runtime::wit::WitInterface;
 
 mod common;
+use common::start_dev_router_host;
 use common::{http_only_host_interfaces, json_u64_field};
 
 const ECHO_P3_WASM: &[u8] = include_bytes!("wasm/messaging_echo_p3.wasm");
@@ -129,20 +130,16 @@ async fn start_harness() -> Result<Harness<impl HostApi>> {
     let _ = tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .try_init();
-    let engine = Engine::builder().build()?;
-    let ingress = Ingress::new(DevRouter::default(), "127.0.0.1:0".parse()?).await?;
-    let addr = ingress.addr();
     let messaging = Arc::new(InMemoryMessaging::new());
-    let host = HostBuilder::new()
-        .with_engine(engine)
-        .with_http_handler(Arc::new(ingress))
-        .with_plugin(Arc::new(InMemoryBlobstore::new(None)))?
-        .with_plugin(Arc::new(InMemoryKeyValue::new()))?
-        .with_plugin(Arc::new(TracingLogger::default()))?
-        .with_plugin(Arc::new(DynamicConfig::default()))?
-        .with_plugin(messaging.clone())?
-        .build()?;
-    let host = host.start().await.context("failed to start host")?;
+    let (addr, host) = start_dev_router_host(|builder| {
+        builder
+            .with_plugin(Arc::new(InMemoryBlobstore::new(None)))?
+            .with_plugin(Arc::new(InMemoryKeyValue::new()))?
+            .with_plugin(Arc::new(TracingLogger::default()))?
+            .with_plugin(Arc::new(DynamicConfig::default()))?
+            .with_plugin(messaging.clone())
+    })
+    .await?;
     Ok(Harness {
         host,
         addr,

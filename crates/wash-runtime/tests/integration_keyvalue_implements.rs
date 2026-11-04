@@ -45,6 +45,7 @@ use wash_runtime::{
 
 mod common;
 use common::http_incoming_handler_interface;
+use common::start_dev_router_host;
 
 const KEYVALUE_IMPLEMENTS_WASM: &[u8] = include_bytes!("wasm/keyvalue_implements.wasm");
 
@@ -75,19 +76,15 @@ fn named_store_with(name: &str, config: &[(&str, &str)]) -> WitInterface {
 /// A host serving the in-memory and filesystem backends under `bindings`, and
 /// the address its HTTP ingress listens on.
 async fn start_host(bindings: PluginBindings) -> Result<(Arc<Host>, SocketAddr)> {
-    let engine = Engine::builder().build()?;
-    let ingress = Ingress::new(DevRouter::default(), "127.0.0.1:0".parse()?).await?;
-    let addr = ingress.addr();
     let multiplexed = MultiplexedKeyValue::new()
         .with_provider(Arc::new(InMemoryProvider))
         .with_provider(Arc::new(FilesystemProvider));
-    let host = HostBuilder::new()
-        .with_engine(engine)
-        .with_http_handler(Arc::new(ingress))
-        .with_plugin(Arc::new(multiplexed))?
-        .with_plugin_bindings(bindings)
-        .build()?;
-    let host = host.start().await.context("failed to start host")?;
+    let (addr, host) = start_dev_router_host(|builder| {
+        Ok(builder
+            .with_plugin(Arc::new(multiplexed))?
+            .with_plugin_bindings(bindings))
+    })
+    .await?;
     Ok((host, addr))
 }
 

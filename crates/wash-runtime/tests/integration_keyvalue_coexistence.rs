@@ -39,6 +39,7 @@ use wash_runtime::{
 
 mod common;
 use common::http_incoming_handler_interface;
+use common::start_dev_router_host;
 
 const KEYVALUE_COUNTER_WASM: &[u8] = include_bytes!("wasm/keyvalue_counter.wasm");
 
@@ -63,21 +64,16 @@ fn kv_interface(name: Option<&str>, backend: Option<&str>) -> WitInterface {
 
 #[tokio::test]
 async fn standalone_and_multiplexed_keyvalue_coexist() -> Result<()> {
-    let engine = Engine::builder().build()?;
-    let ingress = Ingress::new(DevRouter::default(), "127.0.0.1:0".parse()?).await?;
-    let addr = ingress.addr();
-
     // Both plugins on one host: the standalone serves the unnamed import, the
     // multiplexed serves the named ones. The multiplexed plugin defaults named
     // interfaces to an isolated in-memory backend via `InMemoryProvider`.
     let multiplexed = MultiplexedKeyValue::new().with_provider(Arc::new(InMemoryProvider));
-    let host = HostBuilder::new()
-        .with_engine(engine)
-        .with_http_handler(Arc::new(ingress))
-        .with_plugin(Arc::new(InMemoryKeyValue::new()))?
-        .with_plugin(Arc::new(multiplexed))?
-        .build()?;
-    let host = host.start().await.context("failed to start host")?;
+    let (addr, host) = start_dev_router_host(|builder| {
+        builder
+            .with_plugin(Arc::new(InMemoryKeyValue::new()))?
+            .with_plugin(Arc::new(multiplexed))
+    })
+    .await?;
 
     // Unnamed kv (-> standalone) + two named kv interfaces (-> multiplexed). The
     // named entries force the multiplexed plugin to bind and run its named

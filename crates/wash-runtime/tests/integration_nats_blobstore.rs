@@ -32,6 +32,9 @@ use wash_runtime::{
     wit::WitInterface,
 };
 
+mod common;
+use common::start_dev_router_host;
+
 const HTTP_BLOBSTORE_WASM: &[u8] = include_bytes!("wasm/http_blobstore.wasm");
 
 struct TestHarness {
@@ -103,19 +106,14 @@ async fn start(
     binding: HashMap<String, String>,
     bindings: PluginBindings,
 ) -> Result<TestHarness> {
-    let engine = Engine::builder().build()?;
-    let ingress = Ingress::new(DevRouter::default(), "127.0.0.1:0".parse()?).await?;
-    let addr = ingress.addr();
     let blobstore_plugin = NatsBlobstore::new(&nats_client);
 
-    let host = HostBuilder::new()
-        .with_engine(engine)
-        .with_http_handler(Arc::new(ingress))
-        .with_plugin(Arc::new(blobstore_plugin))?
-        .with_plugin_bindings(bindings)
-        .build()?;
-
-    let host = host.start().await.context("Failed to start host")?;
+    let (addr, host) = start_dev_router_host(|builder| {
+        Ok(builder
+            .with_plugin(Arc::new(blobstore_plugin))?
+            .with_plugin_bindings(bindings))
+    })
+    .await?;
 
     let req = WorkloadStartRequest {
         workload_id: uuid::Uuid::new_v4().to_string(),

@@ -49,6 +49,7 @@ use wash_runtime::{
 
 mod common;
 use common::http_incoming_handler_interface;
+use common::start_dev_router_host;
 
 const POSTGRES_IMPLEMENTS_WASM: &[u8] = include_bytes!("wasm/postgres_implements.wasm");
 
@@ -136,29 +137,25 @@ async fn implements_imports_route_to_per_credential_connections() -> Result<()> 
 
     // Stand up a host with the postgres plugin (no shared bouncer URL: purely
     // implements-routed) plus an HTTP entrypoint to drive the guest.
-    let engine = Engine::builder().build()?;
-    let ingress = Ingress::new(DevRouter::default(), "127.0.0.1:0".parse()?).await?;
-    let addr = ingress.addr();
 
-    let host = HostBuilder::new()
-        .with_engine(engine)
-        .with_http_handler(Arc::new(ingress))
-        .with_plugin(Arc::new(WasmcloudPostgres::multiplex_only()))?
-        .with_plugin_bindings(
-            PluginBindings::new().with_plugin(
-                PluginBindingSet::new("wasmcloud-postgres")
-                    .with_binding(
-                        "team-a",
-                        wash_runtime::wit::Config::from_iter([("url".to_string(), team_a_url)]),
-                    )
-                    .with_binding(
-                        "team-b",
-                        wash_runtime::wit::Config::from_iter([("url".to_string(), team_b_url)]),
-                    ),
-            ),
-        )
-        .build()?;
-    let host = host.start().await.context("failed to start host")?;
+    let (addr, host) = start_dev_router_host(|builder| {
+        Ok(builder
+            .with_plugin(Arc::new(WasmcloudPostgres::multiplex_only()))?
+            .with_plugin_bindings(
+                PluginBindings::new().with_plugin(
+                    PluginBindingSet::new("wasmcloud-postgres")
+                        .with_binding(
+                            "team-a",
+                            wash_runtime::wit::Config::from_iter([("url".to_string(), team_a_url)]),
+                        )
+                        .with_binding(
+                            "team-b",
+                            wash_runtime::wit::Config::from_iter([("url".to_string(), team_b_url)]),
+                        ),
+                ),
+            ))
+    })
+    .await?;
 
     // The two named interfaces map to the guest's `team-a` / `team-b` query
     // imports; each routes to a connection with the credentials the operator

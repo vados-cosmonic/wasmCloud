@@ -29,6 +29,9 @@ use wash_runtime::{
     wit::WitInterface,
 };
 
+mod common;
+use common::start_dev_router_host;
+
 const MESSAGING_ECHO_WASM: &[u8] = include_bytes!("wasm/messaging_echo.wasm");
 
 const SUBSCRIPTION_SUBJECT: &str = "test.echo";
@@ -91,19 +94,12 @@ async fn setup_with_limits(
             .context("Failed to connect plugin client to NATS")?,
     );
 
-    let engine = Engine::builder().build()?;
     // Ingress is required by HostBuilder even though this test doesn't
     // exercise HTTP — bind to ephemeral port 0.
-    let ingress = Ingress::new(DevRouter::default(), "127.0.0.1:0".parse()?).await?;
     let messaging_plugin = NatsMessaging::with_limits(plugin_client, limits);
 
-    let host = HostBuilder::new()
-        .with_engine(engine)
-        .with_http_handler(Arc::new(ingress))
-        .with_plugin(Arc::new(messaging_plugin))?
-        .build()?;
-
-    let host = host.start().await.context("Failed to start host")?;
+    let (_addr, host) =
+        start_dev_router_host(|builder| builder.with_plugin(Arc::new(messaging_plugin))).await?;
 
     // Start all workloads
     for req in workloads {
