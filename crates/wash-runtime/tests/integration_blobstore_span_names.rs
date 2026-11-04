@@ -17,15 +17,14 @@ use tracing::{Subscriber, span::Attributes};
 use tracing_subscriber::{Layer, layer::Context as LayerContext, prelude::*, registry::Registry};
 
 use wash_runtime::{
-    engine::Engine,
-    host::{
-        HostApi, HostBuilder,
-        http::{DevRouter, Ingress},
-    },
+    host::HostApi,
     plugin::wasi_blobstore::InMemoryBlobstore,
     types::{Component, LocalResources, Workload, WorkloadStartRequest},
     wit::WitInterface,
 };
+
+mod common;
+use common::start_dev_router_host;
 
 const HTTP_BLOBSTORE_WASM: &[u8] = include_bytes!("wasm/http_blobstore.wasm");
 
@@ -62,17 +61,10 @@ async fn wasi_blobstore_handlers_emit_namespaced_spans() -> Result<()> {
         .try_init()
         .context("failed to install tracing subscriber")?;
 
-    let engine = Engine::builder().build()?;
-    let ingress = Ingress::new(DevRouter::default(), "127.0.0.1:0".parse()?).await?;
-    let addr = ingress.addr();
     let blobstore_plugin = InMemoryBlobstore::new(None);
 
-    let host = HostBuilder::new()
-        .with_engine(engine)
-        .with_http_handler(Arc::new(ingress))
-        .with_plugin(Arc::new(blobstore_plugin))?
-        .build()?;
-    let host = host.start().await.context("Failed to start host")?;
+    let (addr, host) =
+        start_dev_router_host(|builder| builder.with_plugin(Arc::new(blobstore_plugin))).await?;
 
     let req = WorkloadStartRequest {
         workload_id: uuid::Uuid::new_v4().to_string(),

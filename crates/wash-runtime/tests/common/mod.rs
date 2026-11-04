@@ -16,15 +16,20 @@ pub mod postgres;
 pub mod streaming;
 
 use anyhow::{Context, Result};
-use std::{collections::HashMap, time::Duration};
-#[cfg(all(
-    feature = "wasi-blobstore",
-    feature = "wasi-config",
-    feature = "wasi-keyvalue",
-    feature = "wasi-logging"
-))]
-use std::{path::Path, sync::Arc};
+use std::{collections::HashMap, net::SocketAddr, sync::Arc, time::Duration};
 use tokio::time::timeout;
+use wash_runtime::{
+    engine::Engine,
+    host::{
+        Host, HostApi, HostBuilder,
+        http::{DevRouter, HostHandler, Ingress, Router},
+    },
+    types::{
+        Component, LocalResources, Workload, WorkloadStartRequest, WorkloadStartResponse,
+        WorkloadState,
+    },
+    wit::WitInterface,
+};
 
 #[cfg(all(
     feature = "host-component-plugins",
@@ -34,57 +39,21 @@ use tokio::time::timeout;
     feature = "wasi-logging"
 ))]
 use wash_runtime::plugin::component_host::ComponentHostPlugin;
+/// The types only the standard-plugin helpers use, gated once on the features those plugins need.
 #[cfg(all(
     feature = "wasi-blobstore",
     feature = "wasi-config",
     feature = "wasi-keyvalue",
     feature = "wasi-logging"
 ))]
-use wash_runtime::plugin::wasi_blobstore::InMemoryBlobstore;
-#[cfg(all(
-    feature = "wasi-blobstore",
-    feature = "wasi-config",
-    feature = "wasi-keyvalue",
-    feature = "wasi-logging"
-))]
-use wash_runtime::plugin::wasi_config::DynamicConfig;
-#[cfg(all(
-    feature = "wasi-blobstore",
-    feature = "wasi-config",
-    feature = "wasi-keyvalue",
-    feature = "wasi-logging"
-))]
-use wash_runtime::plugin::wasi_keyvalue::InMemoryKeyValue;
-#[cfg(all(
-    feature = "wasi-blobstore",
-    feature = "wasi-config",
-    feature = "wasi-keyvalue",
-    feature = "wasi-logging"
-))]
-use wash_runtime::plugin::wasi_logging::TracingLogger;
-#[cfg(all(
-    feature = "wasi-blobstore",
-    feature = "wasi-config",
-    feature = "wasi-keyvalue",
-    feature = "wasi-logging"
-))]
-use wash_runtime::plugin::wasmcloud_secrets::WasmcloudSecrets;
-#[cfg(all(
-    feature = "wasi-blobstore",
-    feature = "wasi-config",
-    feature = "wasi-keyvalue",
-    feature = "wasi-logging"
-))]
-use wash_runtime::{
-    engine::Engine,
-    host::{
-        HostApi, HostBuilder,
-        http::{DevRouter, DynamicRouter, Ingress, TlsConfig},
+use {
+    std::path::Path,
+    wash_runtime::host::http::{DynamicRouter, TlsConfig},
+    wash_runtime::plugin::{
+        wasi_blobstore::InMemoryBlobstore, wasi_config::DynamicConfig,
+        wasi_keyvalue::InMemoryKeyValue, wasi_logging::TracingLogger,
+        wasmcloud_secrets::WasmcloudSecrets,
     },
-};
-use wash_runtime::{
-    types::{Component, LocalResources, Workload, WorkloadStartRequest},
-    wit::WitInterface,
 };
 
 /// HTTP incoming-handler (0.2.2) with `host` config, plus optional
@@ -96,65 +65,25 @@ pub fn http_incoming_handler_interface(host_header: &str, aliases: Option<&str>)
         config.insert("host-aliases".to_string(), aliases.to_string());
     }
     WitInterface {
-        namespace: "wasi".to_string(),
-        package: "http".to_string(),
-        interfaces: ["incoming-handler".to_string()].into_iter().collect(),
-        version: Some(semver::Version::parse("0.2.2").unwrap()),
         config,
-        name: None,
+        ..WitInterface::from("wasi:http/incoming-handler@0.2.2")
     }
 }
 
 fn wasi_blobstore_interface() -> WitInterface {
-    WitInterface {
-        namespace: "wasi".to_string(),
-        package: "blobstore".to_string(),
-        interfaces: [
-            "blobstore".to_string(),
-            "container".to_string(),
-            "types".to_string(),
-        ]
-        .into_iter()
-        .collect(),
-        version: Some(semver::Version::parse("0.2.0-draft").unwrap()),
-        config: Default::default(),
-        name: None,
-    }
+    WitInterface::from("wasi:blobstore/blobstore,container,types@0.2.0-draft")
 }
 
 fn wasi_keyvalue_interface() -> WitInterface {
-    WitInterface {
-        namespace: "wasi".to_string(),
-        package: "keyvalue".to_string(),
-        interfaces: ["store".to_string(), "atomics".to_string()]
-            .into_iter()
-            .collect(),
-        version: Some(semver::Version::parse("0.2.0-draft").unwrap()),
-        config: Default::default(),
-        name: None,
-    }
+    WitInterface::from("wasi:keyvalue/store,atomics@0.2.0-draft")
 }
 
 fn wasi_logging_interface() -> WitInterface {
-    WitInterface {
-        namespace: "wasi".to_string(),
-        package: "logging".to_string(),
-        interfaces: ["logging".to_string()].into_iter().collect(),
-        version: Some(semver::Version::parse("0.1.0-draft").unwrap()),
-        config: Default::default(),
-        name: None,
-    }
+    WitInterface::from("wasi:logging/logging@0.1.0-draft")
 }
 
 fn wasi_config_interface() -> WitInterface {
-    WitInterface {
-        namespace: "wasi".to_string(),
-        package: "config".to_string(),
-        interfaces: ["store".to_string()].into_iter().collect(),
-        version: Some(semver::Version::parse("0.2.0-rc.1").unwrap()),
-        config: Default::default(),
-        name: None,
-    }
+    WitInterface::from("wasi:config/store@0.2.0-rc.1")
 }
 
 /// Interfaces used by the `http-counter` component: HTTP, blobstore,
@@ -188,14 +117,7 @@ pub fn http_only_host_interfaces(host_header: &str) -> Vec<WitInterface> {
 /// host component plugin.
 #[cfg(feature = "host-component-plugins")]
 pub fn acme_kv_interface() -> WitInterface {
-    WitInterface {
-        namespace: "acme".to_string(),
-        package: "kv".to_string(),
-        interfaces: ["store".to_string()].into_iter().collect(),
-        version: Some(semver::Version::parse("0.1.0").unwrap()),
-        config: Default::default(),
-        name: None,
-    }
+    WitInterface::from("acme:kv/store@0.1.0")
 }
 
 /// Interfaces for the `kv-plugin-caller` workload: HTTP ingress plus the imported
@@ -246,14 +168,8 @@ pub fn kv_plugin_implements_caller_host_interfaces(host_header: &str) -> Vec<Wit
 /// `wasmcloud-secrets` plugin.
 pub fn secrets_interface(config: HashMap<String, String>) -> WitInterface {
     WitInterface {
-        namespace: "wasmcloud".to_string(),
-        package: "secrets".to_string(),
-        interfaces: ["store".to_string(), "reveal".to_string()]
-            .into_iter()
-            .collect(),
-        version: Some(semver::Version::parse("2.1.0").unwrap()),
         config: config.into(),
-        name: None,
+        ..WitInterface::from("wasmcloud:secrets/store,reveal@2.1.0")
     }
 }
 
@@ -343,6 +259,47 @@ fn with_standard_plugins(
         .with_plugin(Arc::new(WasmcloudSecrets::new()))
 }
 
+/// Start a host whose HTTP traffic goes through `http`,
+/// with whatever plugins `plugins` attaches to the builder.
+///
+/// Every `start_host*` helper in this module is this function
+/// with a particular ingress and plugin set.
+/// A test that needs its own plugin set calls it,
+/// or [`start_dev_router_host`], directly instead of building a host by hand.
+pub async fn start_host(
+    http: Arc<dyn HostHandler>,
+    plugins: impl FnOnce(HostBuilder) -> Result<HostBuilder>,
+) -> Result<Arc<Host>> {
+    let builder = HostBuilder::new()
+        .with_engine(Engine::builder().build()?)
+        .with_http_handler(http);
+    plugins(builder)?
+        .build()?
+        .start()
+        .await
+        .context("Failed to start host")
+}
+
+/// [`start_host`] serving HTTP through `router` on `addr`.
+/// Returns the bound address alongside the started host.
+pub async fn start_host_on(
+    router: impl Router,
+    addr: &str,
+    plugins: impl FnOnce(HostBuilder) -> Result<HostBuilder>,
+) -> Result<(SocketAddr, Arc<Host>)> {
+    let ingress = Ingress::new(router, addr.parse()?).await?;
+    let bound_addr = ingress.addr();
+    Ok((bound_addr, start_host(Arc::new(ingress), plugins).await?))
+}
+
+/// [`start_host_on`] with a `DevRouter` on an ephemeral localhost port:
+/// the shape most single-workload tests want.
+pub async fn start_dev_router_host(
+    plugins: impl FnOnce(HostBuilder) -> Result<HostBuilder>,
+) -> Result<(SocketAddr, Arc<Host>)> {
+    start_host_on(DevRouter::default(), "127.0.0.1:0", plugins).await
+}
+
 /// Start a host with a "DevRouter" backed HTTP server and the standard plugin
 /// set. Returns the bound address and a started `HostApi` ref.
 #[cfg(all(
@@ -351,20 +308,8 @@ fn with_standard_plugins(
     feature = "wasi-keyvalue",
     feature = "wasi-logging"
 ))]
-pub async fn start_host_with_dev_router(
-    addr: &str,
-) -> Result<(std::net::SocketAddr, impl HostApi)> {
-    let engine = Engine::builder().build()?;
-    let ingress = Ingress::new(DevRouter::default(), addr.parse()?).await?;
-    let bound_addr = ingress.addr();
-    let host = with_standard_plugins(
-        HostBuilder::new()
-            .with_engine(engine)
-            .with_http_handler(Arc::new(ingress)),
-    )?
-    .build()?;
-    let host = host.start().await.context("Failed to start host")?;
-    Ok((bound_addr, host))
+pub async fn start_host_with_dev_router(addr: &str) -> Result<(SocketAddr, impl HostApi)> {
+    start_host_on(DevRouter::default(), addr, with_standard_plugins).await
 }
 
 /// Start a host with a "DynamicRouter" backed HTTP server and the standard
@@ -375,20 +320,8 @@ pub async fn start_host_with_dev_router(
     feature = "wasi-keyvalue",
     feature = "wasi-logging"
 ))]
-pub async fn start_host_with_dynamic_router(
-    addr: &str,
-) -> Result<(std::net::SocketAddr, impl HostApi)> {
-    let engine = Engine::builder().build()?;
-    let ingress = Ingress::new(DynamicRouter::default(), addr.parse()?).await?;
-    let bound_addr = ingress.addr();
-    let host = with_standard_plugins(
-        HostBuilder::new()
-            .with_engine(engine)
-            .with_http_handler(Arc::new(ingress)),
-    )?
-    .build()?;
-    let host = host.start().await.context("Failed to start host")?;
-    Ok((bound_addr, host))
+pub async fn start_host_with_dynamic_router(addr: &str) -> Result<(SocketAddr, impl HostApi)> {
+    start_host_on(DynamicRouter::default(), addr, with_standard_plugins).await
 }
 
 /// Start a host with a TLS-enabled `DevRouter`-backed HTTP server and the
@@ -403,8 +336,7 @@ pub async fn start_host_with_dynamic_router(
 pub async fn start_host_with_tls(
     cert_path: &Path,
     key_path: &Path,
-) -> Result<(std::net::SocketAddr, impl HostApi)> {
-    let engine = Engine::builder().build()?;
+) -> Result<(SocketAddr, impl HostApi)> {
     let ingress = Ingress::new_with_tls(
         DevRouter::default(),
         "127.0.0.1:0".parse()?,
@@ -412,38 +344,23 @@ pub async fn start_host_with_tls(
     )
     .await?;
     let bound_addr = ingress.addr();
-    let host = with_standard_plugins(
-        HostBuilder::new()
-            .with_engine(engine)
-            .with_http_handler(Arc::new(ingress)),
-    )?
-    .build()?;
-    let host = host.start().await.context("Failed to start host")?;
-    Ok((bound_addr, host))
+    Ok((
+        bound_addr,
+        start_host(Arc::new(ingress), with_standard_plugins).await?,
+    ))
 }
 
-/// Start a host with `wasip3` enabled on the engine, a `DevRouter` backed
-/// HTTP server, and the standard plugin set.
+/// The same host as [`start_host_with_dev_router`].
+/// The engine runs p2 and p3 components alike,
+/// so p3 tests need nothing extra; the name is kept for those callers.
 #[cfg(all(
     feature = "wasi-blobstore",
     feature = "wasi-config",
     feature = "wasi-keyvalue",
     feature = "wasi-logging"
 ))]
-pub async fn start_host_with_p3_http_handler(
-    addr: &str,
-) -> Result<(std::net::SocketAddr, impl HostApi)> {
-    let engine = Engine::builder().build()?;
-    let ingress = Ingress::new(DevRouter::default(), addr.parse()?).await?;
-    let bound_addr = ingress.addr();
-    let host = with_standard_plugins(
-        HostBuilder::new()
-            .with_engine(engine)
-            .with_http_handler(Arc::new(ingress)),
-    )?
-    .build()?;
-    let host = host.start().await.context("Failed to start host")?;
-    Ok((bound_addr, host))
+pub async fn start_host_with_p3_http_handler(addr: &str) -> Result<(SocketAddr, impl HostApi)> {
+    start_host_with_dev_router(addr).await
 }
 
 /// Start a p3 host with the standard plugin set plus a [`ComponentHostPlugin`]
@@ -464,7 +381,7 @@ async fn start_host_with_component_plugin_router(
     plugin_wasm: &'static [u8],
     max_restarts: Option<u32>,
     plugin_bindings: wash_runtime::plugin::PluginBindings,
-) -> Result<(std::net::SocketAddr, impl HostApi)> {
+) -> Result<(SocketAddr, impl HostApi)> {
     let engine = Engine::builder().build()?;
     let ingress = Ingress::new(router, addr.parse()?).await?;
     let bound_addr = ingress.addr();
@@ -503,7 +420,7 @@ pub async fn start_host_with_component_plugin_bindings(
     plugin_id: &'static str,
     plugin_wasm: &'static [u8],
     plugin_bindings: wash_runtime::plugin::PluginBindings,
-) -> Result<(std::net::SocketAddr, impl HostApi)> {
+) -> Result<(SocketAddr, impl HostApi)> {
     start_host_with_component_plugin_router(
         addr,
         DevRouter::default(),
@@ -528,7 +445,7 @@ pub async fn start_host_with_component_plugins(
     addr: &str,
     plugins: &[(&'static str, &'static [u8])],
     plugin_bindings: wash_runtime::plugin::PluginBindings,
-) -> Result<(std::net::SocketAddr, impl HostApi)> {
+) -> Result<(SocketAddr, impl HostApi)> {
     let engine = Engine::builder().build()?;
     let ingress = Ingress::new(DevRouter::default(), addr.parse()?).await?;
     let bound_addr = ingress.addr();
@@ -570,7 +487,7 @@ pub async fn start_host_with_component_plugin(
     addr: &str,
     plugin_id: &'static str,
     plugin_wasm: &'static [u8],
-) -> Result<(std::net::SocketAddr, impl HostApi)> {
+) -> Result<(SocketAddr, impl HostApi)> {
     start_host_with_component_plugin_router(
         addr,
         DevRouter::default(),
@@ -597,7 +514,7 @@ pub async fn start_host_with_component_plugin_by_host(
     addr: &str,
     plugin_id: &'static str,
     plugin_wasm: &'static [u8],
-) -> Result<(std::net::SocketAddr, impl HostApi)> {
+) -> Result<(SocketAddr, impl HostApi)> {
     start_host_with_component_plugin_router(
         addr,
         DynamicRouter::default(),
@@ -623,7 +540,7 @@ pub async fn start_host_with_component_plugin_max_restarts(
     plugin_id: &'static str,
     plugin_wasm: &'static [u8],
     max_restarts: u32,
-) -> Result<(std::net::SocketAddr, impl HostApi)> {
+) -> Result<(SocketAddr, impl HostApi)> {
     start_host_with_component_plugin_router(
         addr,
         DevRouter::default(),
@@ -646,18 +563,10 @@ pub async fn start_host_with_component_plugin_max_restarts(
 ))]
 pub async fn start_host_with_p3_handler(
     addr: &str,
-) -> Result<(std::net::SocketAddr, impl HostApi, Arc<Ingress<DevRouter>>)> {
-    let engine = Engine::builder().build()?;
+) -> Result<(SocketAddr, impl HostApi, Arc<Ingress<DevRouter>>)> {
     let ingress = Arc::new(Ingress::new(DevRouter::default(), addr.parse()?).await?);
-    let bound_addr = ingress.addr();
-    let host = with_standard_plugins(
-        HostBuilder::new()
-            .with_engine(engine)
-            .with_http_handler(ingress.clone()),
-    )?
-    .build()?;
-    let host = host.start().await.context("Failed to start host")?;
-    Ok((bound_addr, host, ingress))
+    let host = start_host(ingress.clone(), with_standard_plugins).await?;
+    Ok((ingress.addr(), host, ingress))
 }
 
 /// Extract the numeric value of `"name":N` from a flat JSON body without
@@ -673,44 +582,42 @@ pub fn json_u64_field(body: &str, name: &str) -> u64 {
     rest[..end].parse().expect("numeric field")
 }
 
-/// GET `http://{addr}/` with the given `HOST` header and a 10s timeout.
-pub async fn get_status(
+/// GET `http://{addr}{path}` with the given `HOST` header and a 15s timeout.
+/// The one request path every `get_*` helper below goes through.
+async fn get(
     client: &reqwest::Client,
-    addr: std::net::SocketAddr,
+    addr: SocketAddr,
     host_header: &str,
-) -> Result<reqwest::StatusCode> {
-    let response = timeout(
-        Duration::from_secs(10),
+    path: &str,
+) -> Result<reqwest::Response> {
+    timeout(
+        Duration::from_secs(15),
         client
-            .get(format!("http://{addr}/"))
+            .get(format!("http://{addr}{path}"))
             .header("HOST", host_header)
             .send(),
     )
     .await
-    .with_context(|| format!("request to {host_header} timed out"))?
-    .with_context(|| format!("request to {host_header} failed"))?;
-    Ok(response.status())
+    .with_context(|| format!("request to {host_header}{path} timed out"))?
+    .with_context(|| format!("request to {host_header}{path} failed"))
+}
+
+/// GET `http://{addr}/` with the given `HOST` header; just the status.
+pub async fn get_status(
+    client: &reqwest::Client,
+    addr: SocketAddr,
+    host_header: &str,
+) -> Result<reqwest::StatusCode> {
+    Ok(get(client, addr, host_header, "/").await?.status())
 }
 
 /// Like `get_status` but also returns the response body text.
 pub async fn get_status_and_body(
     client: &reqwest::Client,
-    addr: std::net::SocketAddr,
+    addr: SocketAddr,
     host_header: &str,
 ) -> Result<(reqwest::StatusCode, String)> {
-    let response = timeout(
-        Duration::from_secs(10),
-        client
-            .get(format!("http://{addr}/"))
-            .header("HOST", host_header)
-            .send(),
-    )
-    .await
-    .context("request timed out")?
-    .context("request failed")?;
-    let status = response.status();
-    let body = response.text().await.unwrap_or_default();
-    Ok((status, body))
+    req(client, &addr, host_header, "/").await
 }
 
 /// Like `get_status_and_body`, but against an arbitrary `path` instead of
@@ -718,20 +625,42 @@ pub async fn get_status_and_body(
 /// not just the `HOST` header.
 pub async fn req(
     client: &reqwest::Client,
-    addr: &std::net::SocketAddr,
+    addr: &SocketAddr,
     host: &str,
     path: &str,
 ) -> Result<(reqwest::StatusCode, String)> {
-    let resp = timeout(
-        Duration::from_secs(15),
-        client
-            .get(format!("http://{addr}{path}"))
-            .header("HOST", host)
-            .send(),
-    )
-    .await
-    .context("request timed out")??;
-    let status = resp.status();
-    let body = resp.text().await?;
+    let response = get(client, *addr, host, path).await?;
+    let status = response.status();
+    let body = response.text().await?;
     Ok((status, body))
+}
+
+/// GET `/` on `host_header`, fail unless the response is a success,
+/// and return its body — the check most HTTP-driven tests end with.
+pub async fn get_ok_body(addr: SocketAddr, host_header: &str) -> Result<String> {
+    let (status, body) = get_status_and_body(&reqwest::Client::new(), addr, host_header).await?;
+    anyhow::ensure!(status.is_success(), "expected 200, got {status}: {body}");
+    Ok(body)
+}
+
+/// Start `request` on `host` and fail unless the workload reached `Running`.
+///
+/// `workload_start` returns `Ok` even when resolution fails
+/// (the error is in the returned status),
+/// so a bare `?` on it does not prove the workload started.
+pub async fn start_running_workload(
+    host: &impl HostApi,
+    request: WorkloadStartRequest,
+) -> Result<WorkloadStartResponse> {
+    let response = host
+        .workload_start(request)
+        .await
+        .context("workload_start call failed")?;
+    anyhow::ensure!(
+        response.workload_status.workload_state == WorkloadState::Running,
+        "workload did not reach Running ({:?}): {}",
+        response.workload_status.workload_state,
+        response.workload_status.message
+    );
+    Ok(response)
 }

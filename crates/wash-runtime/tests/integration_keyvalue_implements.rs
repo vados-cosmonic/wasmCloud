@@ -20,7 +20,6 @@
 //! itself* emits the `(implements ..)` imports.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::Arc;
@@ -30,21 +29,19 @@ use anyhow::{Context, Result};
 use tokio::time::timeout;
 
 use wash_runtime::{
-    engine::Engine,
-    host::{
-        Host, HostApi, HostBuilder,
-        http::{DevRouter, Ingress},
-    },
+    host::{Host, HostApi},
     plugin::{
         PluginBindingSet, PluginBindings,
         wasi_keyvalue::{FilesystemProvider, InMemoryProvider, MultiplexedKeyValue},
     },
-    types::{Component, LocalResources, Workload, WorkloadStartRequest, WorkloadState},
+    types::{LocalResources, WorkloadState},
     wit::WitInterface,
 };
 
 mod common;
+use common::component_workload_request;
 use common::http_incoming_handler_interface;
+use common::start_dev_router_host;
 
 const KEYVALUE_IMPLEMENTS_WASM: &[u8] = include_bytes!("wasm/keyvalue_implements.wasm");
 
@@ -75,19 +72,15 @@ fn named_store_with(name: &str, config: &[(&str, &str)]) -> WitInterface {
 /// A host serving the in-memory and filesystem backends under `bindings`, and
 /// the address its HTTP ingress listens on.
 async fn start_host(bindings: PluginBindings) -> Result<(Arc<Host>, SocketAddr)> {
-    let engine = Engine::builder().build()?;
-    let ingress = Ingress::new(DevRouter::default(), "127.0.0.1:0".parse()?).await?;
-    let addr = ingress.addr();
     let multiplexed = MultiplexedKeyValue::new()
         .with_provider(Arc::new(InMemoryProvider))
         .with_provider(Arc::new(FilesystemProvider));
-    let host = HostBuilder::new()
-        .with_engine(engine)
-        .with_http_handler(Arc::new(ingress))
-        .with_plugin(Arc::new(multiplexed))?
-        .with_plugin_bindings(bindings)
-        .build()?;
-    let host = host.start().await.context("failed to start host")?;
+    let (addr, host) = start_dev_router_host(|builder| {
+        Ok(builder
+            .with_plugin(Arc::new(multiplexed))?
+            .with_plugin_bindings(bindings))
+    })
+    .await?;
     Ok((host, addr))
 }
 
@@ -100,27 +93,13 @@ async fn start_workload(
 ) -> Result<wash_runtime::types::WorkloadStatus> {
     let mut host_interfaces = vec![http_incoming_handler_interface("kv-implements", None)];
     host_interfaces.extend(stores);
-    let req = WorkloadStartRequest {
-        workload_id: uuid::Uuid::new_v4().to_string(),
-        workload: Workload {
-            namespace: "test".to_string(),
-            name: "keyvalue-implements".to_string(),
-            annotations: HashMap::new(),
-            service: None,
-            components: vec![Component {
-                name: "keyvalue-implements.wasm".to_string(),
-                digest: None,
-                bytes: bytes::Bytes::from_static(KEYVALUE_IMPLEMENTS_WASM),
-                local_resources: LocalResources::default(),
-                pool_size: 1,
-                max_invocations: 100,
-                max_concurrency: 1,
-                ..Default::default()
-            }],
-            host_interfaces,
-            volumes: vec![],
-        },
-    };
+    let req = component_workload_request(
+        "keyvalue-implements.wasm",
+        "keyvalue-implements",
+        KEYVALUE_IMPLEMENTS_WASM,
+        LocalResources::default(),
+        host_interfaces,
+    );
     let resp = host
         .workload_start(req)
         .await

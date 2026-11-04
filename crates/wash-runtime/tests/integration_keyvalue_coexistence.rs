@@ -19,7 +19,6 @@
 //! (and persists in) the standalone backend.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -27,18 +26,16 @@ use anyhow::{Context, Result};
 use tokio::time::timeout;
 
 use wash_runtime::{
-    engine::Engine,
-    host::{
-        HostApi, HostBuilder,
-        http::{DevRouter, Ingress},
-    },
+    host::HostApi,
     plugin::wasi_keyvalue::{InMemoryKeyValue, InMemoryProvider, MultiplexedKeyValue},
-    types::{Component, LocalResources, Workload, WorkloadStartRequest},
+    types::LocalResources,
     wit::WitInterface,
 };
 
 mod common;
+use common::component_workload_request;
 use common::http_incoming_handler_interface;
+use common::start_dev_router_host;
 
 const KEYVALUE_COUNTER_WASM: &[u8] = include_bytes!("wasm/keyvalue_counter.wasm");
 
@@ -63,21 +60,16 @@ fn kv_interface(name: Option<&str>, backend: Option<&str>) -> WitInterface {
 
 #[tokio::test]
 async fn standalone_and_multiplexed_keyvalue_coexist() -> Result<()> {
-    let engine = Engine::builder().build()?;
-    let ingress = Ingress::new(DevRouter::default(), "127.0.0.1:0".parse()?).await?;
-    let addr = ingress.addr();
-
     // Both plugins on one host: the standalone serves the unnamed import, the
     // multiplexed serves the named ones. The multiplexed plugin defaults named
     // interfaces to an isolated in-memory backend via `InMemoryProvider`.
     let multiplexed = MultiplexedKeyValue::new().with_provider(Arc::new(InMemoryProvider));
-    let host = HostBuilder::new()
-        .with_engine(engine)
-        .with_http_handler(Arc::new(ingress))
-        .with_plugin(Arc::new(InMemoryKeyValue::new()))?
-        .with_plugin(Arc::new(multiplexed))?
-        .build()?;
-    let host = host.start().await.context("failed to start host")?;
+    let (addr, host) = start_dev_router_host(|builder| {
+        builder
+            .with_plugin(Arc::new(InMemoryKeyValue::new()))?
+            .with_plugin(Arc::new(multiplexed))
+    })
+    .await?;
 
     // Unnamed kv (-> standalone) + two named kv interfaces (-> multiplexed). The
     // named entries force the multiplexed plugin to bind and run its named
@@ -89,27 +81,13 @@ async fn standalone_and_multiplexed_keyvalue_coexist() -> Result<()> {
         kv_interface(Some("sessions"), Some("in-memory")),
     ];
 
-    let req = WorkloadStartRequest {
-        workload_id: uuid::Uuid::new_v4().to_string(),
-        workload: Workload {
-            namespace: "test".to_string(),
-            name: "keyvalue-coexist".to_string(),
-            annotations: HashMap::new(),
-            service: None,
-            components: vec![Component {
-                name: "keyvalue-counter.wasm".to_string(),
-                digest: None,
-                bytes: bytes::Bytes::from_static(KEYVALUE_COUNTER_WASM),
-                local_resources: LocalResources::default(),
-                pool_size: 1,
-                max_invocations: 100,
-                max_concurrency: 1,
-                ..Default::default()
-            }],
-            host_interfaces,
-            volumes: vec![],
-        },
-    };
+    let req = component_workload_request(
+        "keyvalue-counter.wasm",
+        "keyvalue-coexist",
+        KEYVALUE_COUNTER_WASM,
+        LocalResources::default(),
+        host_interfaces,
+    );
 
     // Instantiation runs BOTH plugins' `add_to_linker` on the same linker.
     // Success here is the core coexistence assertion: the default-instance and

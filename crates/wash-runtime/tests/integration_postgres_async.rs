@@ -14,12 +14,10 @@
 #![cfg(feature = "wasmcloud-postgres")]
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use std::time::Duration;
-
 use anyhow::{Context, Result};
-use tokio::time::timeout;
 
 mod common;
+use common::get_ok_body;
 use common::postgres::{admin_client, start_postgres, start_postgres_workload};
 
 #[tokio::test]
@@ -42,21 +40,7 @@ async fn async_query_streams_rows_to_a_default_import() -> Result<()> {
 
     let (addr, _host) = start_postgres_workload(&host_addr, "pg-basic").await?;
 
-    let client = reqwest::Client::new();
-    let response = timeout(
-        Duration::from_secs(15),
-        client
-            .get(format!("http://{addr}/"))
-            .header("HOST", "pg-basic")
-            .send(),
-    )
-    .await
-    .context("request timed out")?
-    .context("request failed")?;
-
-    let status = response.status();
-    let body = response.text().await?;
-    assert!(status.is_success(), "expected 200, got {status}: {body}");
+    let body = get_ok_body(addr, "pg-basic").await?;
     assert_eq!(
         body, "alpha\nbeta\ngamma\n",
         "the default import should stream every row of the query result back in order"

@@ -23,7 +23,6 @@
 //! is covered by `integration_keyvalue_coexistence`.) In-memory, so no Docker.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -31,20 +30,19 @@ use anyhow::{Context, Result};
 use tokio::time::timeout;
 
 use wash_runtime::{
-    engine::Engine,
-    host::{
-        HostApi, HostBuilder,
-        http::{DevRouter, Ingress},
-    },
+    host::HostApi,
     plugin::wasi_keyvalue::{
         InMemoryKeyValue, InMemoryProvider, MultiplexedAsyncKeyValue, MultiplexedKeyValue,
     },
-    types::{Component, LocalResources, Workload, WorkloadStartRequest, WorkloadState},
+    types::{LocalResources, WorkloadStartRequest, WorkloadState},
     wit::WitInterface,
 };
 
 mod common;
+use common::component_workload_request;
 use common::http_incoming_handler_interface;
+use common::start_dev_router_host;
+use common::start_running_workload;
 
 const KEYVALUE_COUNTER_WASM: &[u8] = include_bytes!("wasm/keyvalue_counter.wasm");
 const KEYVALUE_IMPLEMENTS_P3_WASM: &[u8] = include_bytes!("wasm/keyvalue_implements_p3.wasm");
@@ -89,46 +87,28 @@ fn workload(
     wasm: &'static [u8],
     host_interfaces: Vec<WitInterface>,
 ) -> WorkloadStartRequest {
-    WorkloadStartRequest {
-        workload_id: uuid::Uuid::new_v4().to_string(),
-        workload: Workload {
-            namespace: "test".to_string(),
-            name: name.to_string(),
-            annotations: HashMap::new(),
-            service: None,
-            components: vec![Component {
-                name: component.to_string(),
-                digest: None,
-                bytes: bytes::Bytes::from_static(wasm),
-                local_resources: LocalResources::default(),
-                pool_size: 1,
-                max_invocations: 100,
-                max_concurrency: 1,
-                ..Default::default()
-            }],
-            host_interfaces,
-            volumes: vec![],
-        },
-    }
+    component_workload_request(
+        &component,
+        &name,
+        wasm,
+        LocalResources::default(),
+        host_interfaces,
+    )
 }
 
 #[tokio::test]
 async fn standalone_sync_and_async_keyvalue_coexist() -> Result<()> {
-    let engine = Engine::builder().build()?;
-    let ingress = Ingress::new(DevRouter::default(), "127.0.0.1:0".parse()?).await?;
-    let addr = ingress.addr();
-    let host = HostBuilder::new()
-        .with_engine(engine)
-        .with_http_handler(Arc::new(ingress))
-        .with_plugin(Arc::new(InMemoryKeyValue::new()))?
-        .with_plugin(Arc::new(
-            MultiplexedKeyValue::new().with_provider(Arc::new(InMemoryProvider)),
-        ))?
-        .with_plugin(Arc::new(
-            MultiplexedAsyncKeyValue::new().with_provider(Arc::new(InMemoryProvider)),
-        ))?
-        .build()?;
-    let host = host.start().await.context("failed to start host")?;
+    let (addr, host) = start_dev_router_host(|builder| {
+        builder
+            .with_plugin(Arc::new(InMemoryKeyValue::new()))?
+            .with_plugin(Arc::new(
+                MultiplexedKeyValue::new().with_provider(Arc::new(InMemoryProvider)),
+            ))?
+            .with_plugin(Arc::new(
+                MultiplexedAsyncKeyValue::new().with_provider(Arc::new(InMemoryProvider)),
+            ))
+    })
+    .await?;
 
     // Sync wasi:keyvalue workload: unnamed (→ standalone) + named (→ sync mux).
     let sync = workload(
@@ -162,16 +142,9 @@ async fn standalone_sync_and_async_keyvalue_coexist() -> Result<()> {
             wasmcloud_kv_store("kv"),
         ],
     );
-    let resp = host
-        .workload_start(async_)
+    start_running_workload(&host, async_)
         .await
-        .context("async keyvalue workload_start failed")?;
-    assert_eq!(
-        resp.workload_status.workload_state,
-        WorkloadState::Running,
-        "async-multiplexed keyvalue should run alongside the sync plugins: {}",
-        resp.workload_status.message
-    );
+        .context("async-multiplexed keyvalue should run alongside the sync plugins")?;
 
     // Both workloads reaching `Running` above is the coexistence proof: the
     // standalone, sync-multiplexed, and async-multiplexed plugins all ran their
