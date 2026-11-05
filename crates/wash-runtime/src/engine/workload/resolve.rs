@@ -146,9 +146,7 @@ impl UnresolvedWorkload {
                 error = ?e,
                 "failed to link components, unbinding all plugins"
             );
-            if cleanup.is_none() {
-                let _ = resolved_workload.unbind_all_plugins().await;
-            }
+            resolved_workload.roll_back_start(cleanup).await;
             bail!(e);
         }
 
@@ -173,9 +171,7 @@ impl UnresolvedWorkload {
                 error = ?e,
                 "failed to resolve component volume mounts, unbinding all plugins"
             );
-            if cleanup.is_none() {
-                let _ = resolved_workload.unbind_all_plugins().await;
-            }
+            resolved_workload.roll_back_start(cleanup).await;
             bail!(e);
         }
 
@@ -204,9 +200,7 @@ impl UnresolvedWorkload {
                         error = ?e,
                         "failed to notify plugin of resolved workload, unbinding all plugins"
                     );
-                    if cleanup.is_none() {
-                        let _ = resolved_workload.unbind_all_plugins().await;
-                    }
+                    resolved_workload.roll_back_start(cleanup).await;
                     bail!(e);
                 }
             }
@@ -223,9 +217,7 @@ impl UnresolvedWorkload {
                 error = ?e,
                 "failed to notify HTTP handler of resolved workload, unbinding all plugins"
             );
-            if cleanup.is_none() {
-                let _ = resolved_workload.unbind_all_plugins().await;
-            }
+            resolved_workload.roll_back_start(cleanup).await;
             bail!(e);
         }
 

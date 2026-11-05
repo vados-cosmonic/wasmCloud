@@ -224,6 +224,20 @@ impl ResolvedWorkload {
         self.released.load(std::sync::atomic::Ordering::SeqCst)
     }
 
+    /// Roll back a start that failed after plugins were bound.
+    ///
+    /// With a journal (`cleanup` is `Some`) this does nothing:
+    /// the journal owns rollback, and [`WorkloadResources::release`]
+    /// unbinds exactly what it recorded.
+    /// Without one, every plugin is unbound here;
+    /// cleanup errors are logged, not returned,
+    /// since the caller already has the error worth reporting.
+    pub(super) async fn roll_back_start(&self, cleanup: Option<&WorkloadResources>) {
+        if cleanup.is_none() {
+            let _ = self.unbind_all_plugins().await;
+        }
+    }
+
     /// Unbind all plugins from all components in this workload.
     ///
     /// This should be called when stopping a workload to ensure proper cleanup
