@@ -12,6 +12,25 @@ pub(super) type BoundPluginWithInterfaces = (
     Vec<String>,
 );
 
+/// Whether `world` exports an interface this entry names.
+pub(super) fn exports_any_of(entry: &WitInterface, world: &WitWorld) -> bool {
+    entry.interfaces.iter().any(|interface| {
+        world
+            .exports
+            .iter()
+            .any(|ex| entry.same_package(ex) && ex.interfaces.contains(interface))
+    })
+}
+
+/// Whether `world` imports an interface this entry names, under `label`.
+pub(super) fn imports_under_label(entry: &WitInterface, world: &WitWorld, label: &str) -> bool {
+    world.imports.iter().any(|im| {
+        im.name.as_deref() == Some(label)
+            && entry.same_package(im)
+            && entry.interfaces.iter().any(|i| im.interfaces.contains(i))
+    })
+}
+
 /// Whether the workload answers `entry` for `item_id` out of its own
 /// components, so the host is never asked for it: `item_id` imports every one of
 /// the entry's interfaces, and each is exported by exactly one *other* component
@@ -44,25 +63,6 @@ pub(super) type BoundPluginWithInterfaces = (
 /// asked the host to serve, which is both a regression against what deploys
 /// today and a way for a guest to answer for the host. Zero exporters is
 /// unchanged.
-/// Whether `world` exports an interface this entry names.
-pub(super) fn exports_any_of(entry: &WitInterface, world: &WitWorld) -> bool {
-    entry.interfaces.iter().any(|interface| {
-        world
-            .exports
-            .iter()
-            .any(|ex| entry.same_package(ex) && ex.interfaces.contains(interface))
-    })
-}
-
-/// Whether `world` imports an interface this entry names, under `label`.
-pub(super) fn imports_under_label(entry: &WitInterface, world: &WitWorld, label: &str) -> bool {
-    world.imports.iter().any(|im| {
-        im.name.as_deref() == Some(label)
-            && entry.same_package(im)
-            && entry.interfaces.iter().any(|i| im.interfaces.contains(i))
-    })
-}
-
 pub(super) fn served_within_workload(
     entry: &WitInterface,
     item_id: &str,
