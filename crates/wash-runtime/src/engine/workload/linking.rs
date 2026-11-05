@@ -5,26 +5,9 @@
 
 use super::*;
 
-pub(super) fn plugin_bound_instance_names(interface: &WitInterface) -> Vec<String> {
-    if let Some(name) = &interface.name {
-        return vec![name.clone()];
-    }
-    if interface.interfaces.is_empty() {
-        return vec![interface.instance()];
-    }
-    interface
-        .interfaces
-        .iter()
-        .map(|name| {
-            let base = format!("{}:{}/{name}", interface.namespace, interface.package);
-            match &interface.version {
-                Some(version) => format!("{base}@{version}"),
-                None => base,
-            }
-        })
-        .collect()
-}
-
+/// Whether an import is left for the linker to wire to a sibling component:
+/// it is not one of the [`WorkloadMetadata::plugin_bound_instances`]
+/// a plugin already defined in the linker during bind.
 pub(super) fn should_link_component_import(
     import_name: &str,
     plugin_bound_instances: &HashSet<String>,

@@ -49,11 +49,19 @@ pub struct WorkloadMetadata {
     /// The remediation hints this workload deploy has already logged. One set
     /// is shared by every component of a deploy, so a redeploy starts fresh.
     pub(crate) trap_hints: Arc<crate::engine::trap_remediation::TrapHints>,
-    /// Linked component ids
+    /// Every component this one's store must instantiate alongside it:
+    /// the *transitive* closure of its links
+    /// (see [`expand_link_closure`]),
+    /// not only the components it imports from directly.
+    /// Store admission and instance pooling rely on it being complete.
     pub(super) linked_components: HashSet<Arc<str>>,
     /// Workload annotations
     pub(crate) annotations: Arc<HashMap<String, String>>,
-    /// Top-level imports already supplied by host plugins.
+    /// Top-level imports a host plugin already defined in this component's linker,
+    /// spelled as the linker sees them
+    /// (an `(implements ..)` label, or `ns:pkg/iface[@version]`).
+    /// Written during plugin binding with [`plugin_bound_instance_names`];
+    /// read by [`should_link_component_import`] so linking leaves them alone.
     pub(super) plugin_bound_instances: HashSet<String>,
     /// Keeps the engine reusing this compile for any workload that loads the
     /// same digest while this one runs (see [`crate::engine::LiveCompile`]).

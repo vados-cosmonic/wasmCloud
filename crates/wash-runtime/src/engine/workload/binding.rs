@@ -12,6 +12,36 @@ pub(super) type BoundPluginWithInterfaces = (
     Vec<String>,
 );
 
+/// The names a plugin bound for `interface` occupies in a component's linker,
+/// spelled exactly as the linker sees its imports:
+/// the `(implements ..)` label when the entry has one,
+/// otherwise one `ns:pkg/iface[@version]` per interface.
+///
+/// Recorded during bind in [`WorkloadMetadata::plugin_bound_instances`]
+/// and read back by [`should_link_component_import`],
+/// so linking skips the imports a plugin already serves.
+/// The spelling here and the linker's import names must match,
+/// or linking would try to define an instance twice.
+pub(super) fn plugin_bound_instance_names(interface: &WitInterface) -> Vec<String> {
+    if let Some(name) = &interface.name {
+        return vec![name.clone()];
+    }
+    if interface.interfaces.is_empty() {
+        return vec![interface.instance()];
+    }
+    interface
+        .interfaces
+        .iter()
+        .map(|name| {
+            let base = format!("{}:{}/{name}", interface.namespace, interface.package);
+            match &interface.version {
+                Some(version) => format!("{base}@{version}"),
+                None => base,
+            }
+        })
+        .collect()
+}
+
 /// Whether `world` exports an interface this entry names.
 pub(super) fn exports_any_of(entry: &WitInterface, world: &WitWorld) -> bool {
     entry.interfaces.iter().any(|interface| {
