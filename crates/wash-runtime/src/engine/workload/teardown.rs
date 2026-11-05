@@ -57,6 +57,15 @@ impl WorkloadResources {
             .push(Some((plugin, interfaces)));
     }
 
+    /// Record the workload this journal tears down,
+    /// and the http hooks [`Self::release`] must call for it.
+    ///
+    /// Called before linking (so a link failure can be rolled back)
+    /// and again from [`ResolvedWorkload::seal_linkers`].
+    ///
+    /// The hooks listed here must match the http hooks
+    /// [`ResolvedWorkload::unbind_all_plugins`] calls on the path without a journal.
+    /// Add a hook to one and you must add it to the other.
     pub(crate) fn resolved(&self, workload: &ResolvedWorkload) {
         let mut state = self
             .state
@@ -166,6 +175,10 @@ impl WorkloadResources {
 /// successfully keeps tracking a workload that never deploys. Cleanup errors
 /// are logged rather than returned — the caller is already failing, and the
 /// error it has is the one worth reporting.
+///
+/// A no-op when `cleanup` is `Some`:
+/// the journal owns rollback then,
+/// and [`WorkloadResources::release`] unbinds what it recorded.
 pub(super) async fn unbind_all(
     workload_id: &str,
     bound: &[BoundPluginWithInterfaces],
@@ -258,7 +271,11 @@ impl ResolvedWorkload {
                         "unbinding plugin from component"
                     );
 
-                    // Get the interfaces this plugin was bound to by checking the component's imports
+                    // Recompute what this plugin was bound to
+                    // as "what the component imports ∩ what the plugin imports".
+                    // This is not always the set bind passed to `on_workload_bind`
+                    // (see `bind_plugins_for_start`, which resolves labels and policy);
+                    // the journal path unbinds the exact recorded set instead.
                     let world = component.world();
                     let plugin_world = plugin.world();
 
@@ -331,6 +348,9 @@ impl ResolvedWorkload {
             }
         }
 
+        // These http hooks, with the workload one above,
+        // must match the list `WorkloadResources::resolved` records for the journal path.
+        //
         // A trigger service registered its HTTP/messaging handlers at start
         // (`execute_trigger_service`); drop those registrations on stop so it no
         // longer receives host-invoked deliveries on a torn-down instance.

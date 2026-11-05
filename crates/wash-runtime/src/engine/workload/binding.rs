@@ -692,7 +692,10 @@ impl UnresolvedWorkload {
                     plugin_id = plugin_id,
                 );
 
-                // Call on_workload_bind with the workload and all matched interfaces
+                // Journal the binding *before* the await, so a cancelled or failed bind
+                // is still unbound by `WorkloadResources::release`.
+                // Without a journal, `ResolvedWorkload::unbind_all_plugins` recomputes this set
+                // instead of using it, and the two can differ.
                 if let Some(cleanup) = cleanup {
                     cleanup.binding(Arc::clone(p), plugin_matched_interfaces.clone());
                 }

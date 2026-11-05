@@ -133,7 +133,10 @@ impl UnresolvedWorkload {
             scratch: self.scratch,
         };
 
-        // Link components before plugin resolution
+        // Record the workload in the journal *before* linking,
+        // so a link failure below is rolled back by `WorkloadResources::release`,
+        // which needs it for instance shutdown and the http unbinds.
+        // `seal_linkers` records it again once linking may have copied the service.
         if let Some(cleanup) = cleanup {
             cleanup.resolved(&resolved_workload);
         }
