@@ -84,8 +84,10 @@ impl WorkloadResources {
     pub(crate) async fn release(&self, workload_id: &str) -> anyhow::Result<()> {
         // Record each successful step before another await, so failed or
         // cancelled cleanup resumes without repeating completed callbacks.
+        // Held until return, so concurrent releases of one journal run one at a time.
         let _release = self.release_lock.lock().await;
         let state = self.lock_state().clone();
+        // Every step is attempted; if several fail, the last error is the one returned.
         let mut failure = None;
         if let Some(resolved) = &state.resolved {
             resolved.begin_teardown();
