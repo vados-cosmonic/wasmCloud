@@ -289,7 +289,7 @@ impl ResolvedWorkload {
 
             let component = workload_component.metadata.component.clone();
             let plugin_bound_instances = workload_component.metadata.plugin_bound_instances.clone();
-            let res = match self
+            let res = self
                 .resolve_component_imports(
                     &component,
                     &mut workload_component.metadata,
@@ -298,15 +298,14 @@ impl ResolvedWorkload {
                     Some(component_id.as_ref()),
                 )
                 .await
-            {
-                Ok(direct_links) => {
-                    let linked_components = expand_link_closure(&direct_links, &resolved_links);
-                    workload_component.linked_components = linked_components;
-                    Ok(())
-                }
-                Err(err) => Err(err),
-            };
+                .map(|direct_links| {
+                    workload_component.linked_components =
+                        expand_link_closure(&direct_links, &resolved_links);
+                });
 
+            // Put the component back before propagating `res`:
+            // teardown walks `self.components`,
+            // so a component dropped here on error would never be released.
             let linked_components = workload_component.linked_components.clone();
             let workload_component_id = workload_component.metadata.id.clone();
 
@@ -323,7 +322,7 @@ impl ResolvedWorkload {
             let service = Arc::make_mut(&mut shared);
             let component = service.metadata.component.clone();
             let plugin_bound_instances = service.metadata.plugin_bound_instances.clone();
-            let res = match self
+            let res = self
                 .resolve_component_imports(
                     &component,
                     &mut service.metadata,
@@ -332,15 +331,12 @@ impl ResolvedWorkload {
                     None,
                 )
                 .await
-            {
-                Ok(direct_links) => {
-                    let linked_components = expand_link_closure(&direct_links, &resolved_links);
-                    service.metadata.linked_components = linked_components;
-                    Ok(())
-                }
-                Err(err) => Err(err),
-            };
+                .map(|direct_links| {
+                    service.metadata.linked_components =
+                        expand_link_closure(&direct_links, &resolved_links);
+                });
 
+            // As above: restore the service before propagating `res`, so teardown still sees it.
             self.service = Some(shared);
 
             // Propagate any errors encountered during import resolution
