@@ -28,11 +28,18 @@ pub(super) struct WorkloadResourceState {
 }
 
 impl WorkloadResources {
-    pub(crate) fn commit(&self, workload: &mut ResolvedWorkload) {
-        workload.teardown_bindings = self
-            .state
+    /// The journal's state.
+    /// A panic elsewhere must not stop teardown,
+    /// so a poisoned lock is recovered rather than propagated.
+    fn lock_state(&self) -> std::sync::MutexGuard<'_, WorkloadResourceState> {
+        self.state
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    pub(crate) fn commit(&self, workload: &mut ResolvedWorkload) {
+        workload.teardown_bindings = self
+            .lock_state()
             .bindings
             .iter()
             .flatten()
@@ -50,11 +57,7 @@ impl WorkloadResources {
     }
 
     pub(super) fn binding(&self, plugin: Arc<dyn HostPlugin>, interfaces: HashSet<WitInterface>) {
-        self.state
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .bindings
-            .push(Some((plugin, interfaces)));
+        self.lock_state().bindings.push(Some((plugin, interfaces)));
     }
 
     /// Record the workload this journal tears down,
@@ -67,10 +70,7 @@ impl WorkloadResources {
     /// [`ResolvedWorkload::unbind_all_plugins`] calls on the path without a journal.
     /// Add a hook to one and you must add it to the other.
     pub(crate) fn resolved(&self, workload: &ResolvedWorkload) {
-        let mut state = self
-            .state
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut state = self.lock_state();
         state.resolved = Some(workload.clone());
         state.http_unbinds = vec![PendingHttpUnbind::Workload];
         if workload.service.is_some() {
@@ -85,11 +85,7 @@ impl WorkloadResources {
         // Record each successful step before another await, so failed or
         // cancelled cleanup resumes without repeating completed callbacks.
         let _release = self.release_lock.lock().await;
-        let state = self
-            .state
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .clone();
+        let state = self.lock_state().clone();
         let mut failure = None;
         if let Some(resolved) = &state.resolved {
             resolved.begin_teardown();
@@ -114,25 +110,16 @@ impl WorkloadResources {
                     };
                     match result {
                         Ok(()) => self
-                            .state
-                            .lock()
-                            .unwrap_or_else(std::sync::PoisonError::into_inner)
+                            .lock_state()
                             .http_unbinds
                             .retain(|pending| *pending != step),
                         Err(error) => failure = Some(error),
                     }
                 }
             } else {
-                self.state
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner)
-                    .http_unbinds
-                    .clear();
+                self.lock_state().http_unbinds.clear();
             }
-            let mut pending = self
-                .state
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let mut pending = self.lock_state();
             if pending.http_unbinds.is_empty() {
                 pending.resolved = None;
             }
@@ -146,13 +133,7 @@ impl WorkloadResources {
                 .await
             {
                 Ok(()) => {
-                    if let Some(pending) = self
-                        .state
-                        .lock()
-                        .unwrap_or_else(std::sync::PoisonError::into_inner)
-                        .bindings
-                        .get_mut(index)
-                    {
+                    if let Some(pending) = self.lock_state().bindings.get_mut(index) {
                         *pending = None;
                     }
                 }
