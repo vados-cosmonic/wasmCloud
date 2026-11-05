@@ -18,7 +18,7 @@ pub(super) type BoundPluginWithInterfaces = (
 /// otherwise one `ns:pkg/iface[@version]` per interface.
 ///
 /// Recorded during bind in [`WorkloadMetadata::plugin_bound_instances`]
-/// and read back by [`should_link_component_import`],
+/// and read back by [`should_link_component_import`](super::linking::should_link_component_import),
 /// so linking skips the imports a plugin already serves.
 /// The spelling here and the linker's import names must match,
 /// or linking would try to define an instance twice.

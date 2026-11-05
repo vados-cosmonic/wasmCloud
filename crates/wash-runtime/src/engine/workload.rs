@@ -76,7 +76,12 @@ mod teardown;
 mod tests;
 
 // Children that hold only `impl` blocks export no names and are not glob-imported.
-use self::{binding::*, export_map::*, linking::*, metadata::*, teardown::*};
+use self::{binding::*, export_map::*, metadata::*, teardown::*};
+// Only the unit tests below reach into linking's helpers directly.
+#[cfg(test)]
+use self::linking::{
+    expand_link_closure, should_link_component_import, topological_sort_components,
+};
 // `workload_runtime_tests` reaches this through `super::*`.
 #[cfg(test)]
 use self::service::build_trigger_ingresses;
